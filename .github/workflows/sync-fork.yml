@@ -1,12 +1,9 @@
-name: Update Fork on New Release
+name: Update Fork
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 0 * * *" # every day at midnight UTC
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   sync:
@@ -15,37 +12,36 @@ jobs:
       - name: Checkout fork
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Set up Git
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Add upstream remote
         run: |
           git remote add upstream https://github.com/knighthat/Kreate.git
           git fetch upstream
 
-      - name: Backup current workflow
+      - name: Backup this workflow if exists
         run: |
-          mkdir tmp-workflow
-          cp .github/workflows/update-fork.yml tmp-workflow/update-fork.yml
+          mkdir -p tmp-workflow
+          if [ -f ".github/workflows/update-fork.yml" ]; then
+            cp ".github/workflows/update-fork.yml" tmp-workflow/
+          fi
 
-      - name: Merge upstream but skip workflows
+      - name: Merge upstream/main but remove other workflows
         run: |
-          git checkout main
-          git merge --no-commit --no-ff upstream/main || true
+          git merge upstream/main --no-commit --no-ff || true
           git rm -r --cached .github/workflows || true
           rm -rf .github/workflows
-
-      - name: Restore current workflow
-        run: |
           mkdir -p .github/workflows
-          cp tmp-workflow/update-fork.yml .github/workflows/update-fork.yml
-          git add .github/workflows/update-fork.yml
-          git commit -m "Restore update-fork workflow" || true
+          if [ -f "tmp-workflow/update-fork.yml" ]; then
+            cp tmp-workflow/update-fork.yml .github/workflows/
+          fi
+          git add .github/workflows
+          git commit -m "Sync fork from upstream and keep only update-fork.yml" || echo "No changes to commit"
 
       - name: Push changes
-        run: |
-          git push origin main
+        run: git push origin main
