@@ -1,0 +1,54 @@
+name: Update Fork on New Release
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Runs daily at midnight UTC
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check latest upstream release tag
+        id: check_tag
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/knighthat/Kreate/releases/latest | jq -r '.tag_name')
+          echo "Latest release: $LATEST"
+          
+          # Fetch tags from your fork to compare
+          git init temp && cd temp
+          git remote add origin https://github.com/${{ github.repository }}.git
+          git fetch --tags origin
+          CURRENT=$(git tag --sort=-creatordate | head -n 1 || echo "none")
+          echo "Current fork release: $CURRENT"
+          
+          if [ "$LATEST" = "$CURRENT" ]; then
+            echo "No new release. Exiting."
+            exit 0
+          fi
+
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Git
+        run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions Bot"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream https://github.com/knighthat/Kreate.git
+          git fetch upstream --tags
+
+      - name: Merge upstream changes
+        run: |
+          git checkout main
+          git merge upstream/main --allow-unrelated-histories || true
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.8.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
