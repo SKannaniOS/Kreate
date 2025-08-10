@@ -21,7 +21,7 @@ jobs:
       - name: Backup this workflow
         run: |
           mkdir -p tmp-workflow
-          cp .github/workflows/update-fork.yml tmp-workflow/
+          cp .github/workflows/sync-fork.yml tmp-workflow/
 
       - name: Set up Git
         run: |
@@ -39,9 +39,9 @@ jobs:
           git merge --no-commit --no-ff upstream/main || true
           rm -rf .github/workflows
           mkdir -p .github/workflows
-          cp tmp-workflow/update-fork.yml .github/workflows/update-fork.yml
+          cp tmp-workflow/sync-fork.yml .github/workflows/sync-fork.yml
           git add .
-          git commit -m "Sync with upstream (excluding workflows except update-fork.yml)" || true
+          git commit -m "Sync with upstream (excluding workflows except sync-fork.yml)" || true
 
       - name: Push changes
         run: |
