@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.res.Configuration
-import android.graphics.drawable.BitmapDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -26,10 +25,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -70,6 +65,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
@@ -92,13 +88,11 @@ import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
 import app.kreate.android.service.innertube.InnertubeProvider
 import app.kreate.android.service.updater.UpdatePlugins
-import coil.imageLoader
-import coil.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.toBitmap
 import com.kieronquinn.monetcompat.core.MonetActivityAccessException
 import com.kieronquinn.monetcompat.core.MonetCompat
 import com.kieronquinn.monetcompat.interfaces.MonetColorsChangedListener
-import com.valentinilk.shimmer.LocalShimmerTheme
-import com.valentinilk.shimmer.defaultShimmerTheme
 import dev.kdrag0n.monet.theme.ColorScheme
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
@@ -117,7 +111,6 @@ import it.fast4x.rimusic.enums.PlayerBackgroundColors
 import it.fast4x.rimusic.enums.ThumbnailRoundness
 import it.fast4x.rimusic.extensions.pip.PipEventContainer
 import it.fast4x.rimusic.extensions.pip.PipModuleContainer
-import it.fast4x.rimusic.extensions.pip.PipModuleCover
 import it.fast4x.rimusic.service.MyDownloadHelper
 import it.fast4x.rimusic.service.modern.PlayerServiceModern
 import it.fast4x.rimusic.ui.components.CustomModalBottomSheet
@@ -468,17 +461,14 @@ class MainActivity :
 
                 val colorPaletteMode by Preferences.THEME_MODE
                 coroutineScope.launch(Dispatchers.Main) {
-                    val result = imageLoader.execute(
-                        ImageRequest.Builder(this@MainActivity)
-                            .data(url)
-                            .allowHardware(false)
-                            .build()
-                    )
+                    val result = ImageFactory.requestBuilder( url ) {
+                        allowHardware( false )
+                    }.let { ImageFactory.imageLoader.execute( it ) }
                     val isPicthBlack = colorPaletteMode == ColorPaletteMode.PitchBlack
                     val isDark =
                         colorPaletteMode == ColorPaletteMode.Dark || isPicthBlack || (colorPaletteMode == ColorPaletteMode.System && isSystemInDarkTheme)
 
-                    val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
+                    val bitmap = result.image?.toBitmap()
                     if (bitmap != null) {
                         val palette = Palette
                             .from(bitmap)
@@ -726,24 +716,6 @@ class MainActivity :
                     RippleConfiguration(color = appearance.colorPalette.text)
                 }
 
-            val shimmerTheme = remember {
-                defaultShimmerTheme.copy(
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(
-                            durationMillis = 800,
-                            easing = LinearEasing,
-                            delayMillis = 250,
-                        ),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    shaderColors = listOf(
-                        Color.Unspecified.copy(alpha = 0.25f),
-                        Color.White.copy(alpha = 0.50f),
-                        Color.Unspecified.copy(alpha = 0.25f),
-                    ),
-                )
-            }
-
             LaunchedEffect(Unit) {
                 val colorPaletteName by Preferences.COLOR_PALETTE
                 if (colorPaletteName == ColorPaletteName.Customized) {
@@ -815,9 +787,15 @@ class MainActivity :
                             when (pipModule) {
                                 PipModule.Cover -> {
                                     PipModuleContainer {
-                                        PipModuleCover(
-                                            url = binder?.player?.currentMediaItem?.mediaMetadata?.artworkUri.toString()
-                                                .resize(1200, 1200)
+                                        ImageFactory.AsyncImage(
+                                            thumbnailUrl = binder?.player
+                                                                 ?.currentMediaItem
+                                                                 ?.mediaMetadata
+                                                                 ?.artworkUri
+                                                                 .toString()
+                                                                 .resize( 1200, 1200 ),
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier.fillMaxSize()
                                         )
                                     }
                                 }
@@ -832,7 +810,6 @@ class MainActivity :
                             LocalAppearance provides appearance,
                             LocalIndication provides ripple(bounded = true),
                             LocalRippleConfiguration provides rippleConfiguration,
-                            LocalShimmerTheme provides shimmerTheme,
                             LocalPlayerServiceBinder provides binder,
                             LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
                             LocalLayoutDirection provides LayoutDirection.Ltr,

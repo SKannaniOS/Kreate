@@ -1,7 +1,6 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import org.gradle.internal.extensions.stdlib.capitalized
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val APP_NAME = "Kreate"
@@ -29,7 +28,6 @@ repositories {
 
 kotlin {
     androidTarget {
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
             freeCompilerArgs.add("-Xcontext-parameters")
@@ -76,11 +74,11 @@ kotlin {
             // Related to built-in game, maybe removed in future?
             implementation(libs.compose.runtime.livedata)
 
-            implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.okhttp)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation( libs.ktor.serialization.kotlinx.protobuf )
-            implementation(libs.ktor.client.encoding)
+            implementation(libs.ktor.core)
+            implementation(libs.ktor.okhttp)
+            implementation(libs.ktor.content.negotiation)
+            implementation(libs.ktor.serialization.protobuf)
+            implementation(libs.ktor.encoding)
             implementation( libs.ktor.serialization.json )
             implementation(libs.okhttp3.logging.interceptor)
         }
@@ -107,6 +105,7 @@ kotlin {
 
             implementation(libs.translator)
 
+            implementation( libs.bundles.compose.kmp )
         }
     }
 }
@@ -291,19 +290,11 @@ room {
 }
 
 dependencies {
-    implementation(libs.compose.activity)
-    implementation(libs.compose.foundation)
-    implementation(libs.compose.ui)
-    implementation(libs.compose.shimmer)
-    implementation(libs.compose.coil)
     implementation(libs.androidx.palette)
     implementation(libs.media3.exoplayer)
-    implementation(libs.media3.datasource.okhttp)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.appcompat.resources)
-    implementation(libs.material3)
     implementation(libs.androidx.constraintlayout)
-    implementation(libs.compose.animation)
     implementation(libs.kotlin.csv)
     implementation(libs.monetcompat)
     implementation(libs.androidmaterial)
@@ -326,7 +317,4 @@ dependencies {
     implementation(projects.lrclib)
 
     coreLibraryDesugaring(libs.desugaring.nio)
-
-    // Debug only
-    debugImplementation(libs.ui.tooling.preview.android)
 }

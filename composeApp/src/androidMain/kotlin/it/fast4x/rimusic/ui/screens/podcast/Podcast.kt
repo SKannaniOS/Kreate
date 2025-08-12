@@ -66,9 +66,9 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
+import app.kreate.android.coil3.ImageFactory
 import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.android.themed.rimusic.component.song.SongItem
-import coil.compose.AsyncImage
 import it.fast4x.compose.persist.persist
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
@@ -83,7 +83,6 @@ import it.fast4x.rimusic.models.Playlist
 import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.LocalMenuState
-import it.fast4x.rimusic.ui.components.ShimmerHost
 import it.fast4x.rimusic.ui.components.SwipeablePlaylistItem
 import it.fast4x.rimusic.ui.components.themed.AutoResizeText
 import it.fast4x.rimusic.ui.components.themed.FloatingActionsContainerWithScrollToTop
@@ -114,7 +113,6 @@ import it.fast4x.rimusic.utils.isDownloadedSong
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.medium
-import it.fast4x.rimusic.utils.resize
 import it.fast4x.rimusic.utils.secondary
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.CoroutineScope
@@ -271,18 +269,16 @@ fun Podcast(
                     ) {
                         if (podcastPage != null) {
                             if(!isLandscape)
-                                AsyncImage(
-                                    model = podcastPage!!.thumbnail.firstOrNull()?.url?.resize(1200, 900),
-                                    contentDescription = "loading...",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .align(Alignment.Center)
-                                        .fadingEdge(
-                                            top = WindowInsets.systemBars
-                                                .asPaddingValues()
-                                                .calculateTopPadding() + Dimensions.fadeSpacingTop,
-                                            bottom = Dimensions.fadeSpacingBottom
-                                        )
+                                ImageFactory.AsyncImage(
+                                    thumbnailUrl = podcastPage!!.thumbnail.firstOrNull()?.url,
+                                    modifier = Modifier.fillMaxWidth()
+                                                       .align( Alignment.Center )
+                                                       .fadingEdge(
+                                                           top = WindowInsets.systemBars
+                                                               .asPaddingValues()
+                                                               .calculateTopPadding() + Dimensions.fadeSpacingTop,
+                                                           bottom = Dimensions.fadeSpacingBottom
+                                                       )
                                 )
 
                             AutoResizeText(
@@ -341,18 +337,16 @@ fun Podcast(
                                     .fillMaxWidth()
                                     .aspectRatio(4f / 3)
                             ) {
-                                ShimmerHost {
-                                    AlbumItem.VerticalPlaceholder( 200.dp )
+                                AlbumItem.VerticalPlaceholder( 200.dp )
 
-                                    BasicText(
-                                        text = stringResource(R.string.info_wait_it_may_take_a_few_minutes),
-                                        style = typography().xs.medium,
-                                        maxLines = 1,
-                                        modifier = Modifier
-                                            //.padding(top = 10.dp)
+                                BasicText(
+                                    text = stringResource(R.string.info_wait_it_may_take_a_few_minutes),
+                                    style = typography().xs.medium,
+                                    maxLines = 1,
+                                    modifier = Modifier
+                                    //.padding(top = 10.dp)
 
-                                    )
-                                }
+                                )
                             }
                         }
                     }
