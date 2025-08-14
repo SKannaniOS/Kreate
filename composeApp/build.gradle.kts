@@ -1,4 +1,7 @@
 import com.android.build.gradle.internal.api.BaseVariantOutputImpl
+import com.github.jk1.license.filter.DependencyFilter
+import com.github.jk1.license.filter.ExcludeTransitiveDependenciesFilter
+import com.github.jk1.license.render.JsonReportRenderer
 import org.gradle.internal.extensions.stdlib.capitalized
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -15,9 +18,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.room)
 
-
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.serialization)
+    alias( libs.plugins.license.report )
 }
 
 repositories {
@@ -53,8 +56,6 @@ kotlin {
             implementation(libs.material.icon.desktop)
             implementation(libs.vlcj)
 
-            runtimeOnly(libs.kotlinx.coroutines.swing)
-
             /*
             // Uncomment only for build jvm desktop version
             // Comment before build android version
@@ -73,14 +74,29 @@ kotlin {
 
             // Related to built-in game, maybe removed in future?
             implementation(libs.compose.runtime.livedata)
+            implementation( libs.androidx.glance.widgets )
+            implementation( libs.androidx.constraintlayout )
 
-            implementation(libs.ktor.core)
+            implementation( libs.androidx.appcompat )
+            implementation( libs.androidx.appcompat.resources )
+            implementation( libs.androidx.palette )
+
+            implementation( libs.monetcompat )
+            implementation(libs.androidmaterial)
+
             implementation(libs.ktor.okhttp)
-            implementation(libs.ktor.content.negotiation)
-            implementation(libs.ktor.serialization.protobuf)
-            implementation(libs.ktor.encoding)
-            implementation( libs.ktor.serialization.json )
             implementation(libs.okhttp3.logging.interceptor)
+
+            // Deprecating
+            implementation( libs.androidx.crypto )
+
+            // Player implementations
+            implementation( libs.media3.exoplayer )
+            implementation( libs.androidyoutubeplayer )
+
+            implementation( libs.timber )
+
+            implementation( libs.toasty )
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -92,10 +108,14 @@ kotlin {
 
             implementation(projects.innertube)
             implementation(projects.oldtube)
+            implementation(projects.kugou)
+            implementation(projects.lrclib)
 
-            implementation(libs.room)
-            implementation(libs.room.runtime)
-            implementation(libs.room.sqlite.bundled)
+            implementation( libs.kizzy.rpc )
+
+            // Room KMP
+            implementation( libs.room.runtime )
+            implementation( libs.room.sqlite.bundled )
 
             implementation(libs.navigation.kmp)
 
@@ -106,6 +126,15 @@ kotlin {
             implementation(libs.translator)
 
             implementation( libs.bundles.compose.kmp )
+
+            implementation ( libs.hypnoticcanvas )
+            implementation ( libs.hypnoticcanvas.shaders )
+
+            implementation( libs.kotlin.csv )
+
+            implementation( libs.bundles.ktor )
+
+            implementation( libs.math3 )
         }
     }
 }
@@ -290,31 +319,33 @@ room {
 }
 
 dependencies {
-    implementation(libs.androidx.palette)
-    implementation(libs.media3.exoplayer)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.appcompat.resources)
-    implementation(libs.androidx.constraintlayout)
-    implementation(libs.kotlin.csv)
-    implementation(libs.monetcompat)
-    implementation(libs.androidmaterial)
-    implementation(libs.timber)
-    implementation(libs.androidx.crypto)
-    implementation(libs.math3)
-    implementation(libs.toasty)
-    implementation(libs.androidyoutubeplayer)
-    implementation(libs.androidx.glance.widgets)
-    implementation(libs.kizzy.rpc)
-    implementation (libs.hypnoticcanvas)
-    implementation (libs.hypnoticcanvas.shaders)
-
-    implementation(libs.room)
-    ksp(libs.room.compiler)
-
-    implementation(projects.innertube)
-    implementation(projects.oldtube)
-    implementation(projects.kugou)
-    implementation(projects.lrclib)
+    ksp( libs.room.compiler )
 
     coreLibraryDesugaring(libs.desugaring.nio)
+}
+
+// Use `gradlew dependencies` to get report in composeApp/build/reports/dependency-license
+licenseReport {
+    // Select projects to examine for dependencies.
+    // Defaults to current project and all its subprojects
+    projects = arrayOf( project )
+
+    // Adjust the configurations to fetch dependencies. Default is 'runtimeClasspath'
+    // For Android projects use 'releaseRuntimeClasspath' or 'yourFlavorNameReleaseRuntimeClasspath'
+    // Use 'ALL' to dynamically resolve all configurations:
+    // configurations = ALL
+    configurations = arrayOf( "githubUncompressedRuntimeClasspath" )
+
+    // Don't include artifacts of project's own group into the report
+    excludeOwnGroup = true
+
+    // Don't exclude bom dependencies.
+    // If set to true, then all BOMs will be excluded from the report
+    excludeBoms = true
+
+    // Set custom report renderer, implementing ReportRenderer.
+    // Yes, you can write your own to support any format necessary.
+    renderers = arrayOf( JsonReportRenderer() )
+
+    filters = arrayOf<DependencyFilter>( ExcludeTransitiveDependenciesFilter() )
 }

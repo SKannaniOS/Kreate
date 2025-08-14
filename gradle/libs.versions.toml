@@ -1,6 +1,6 @@
 
 [versions]
-agp = "8.11.1"
+agp = "8.12.0"
 kotlin = "2.2.0"
 kotlin-ksp = "2.2.0-2.0.2"
 compose = "1.8.3"
@@ -17,7 +17,7 @@ materialdesktop = "1.7.3"
 androidmaterial = "1.12.0"
 constraintlayout = "1.1.1"
 translator = "1.1.1"
-kotlin-csv = "1.9.3"
+kotlin-csv = "1.10.0"
 monetcompat = "0.4.1"
 timber = "5.0.1"
 crypto = "1.1.0-beta01"
@@ -38,20 +38,19 @@ junit5 = "5.13.4"
 webkit = "1.14.0"
 newpipe-extractor = "0.24.8"
 compose-kmp = "1.8.2"
+license-report = "2.9"
 
 
 [libraries]
 # Kotlinx
 kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-guava = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-guava", version = "kotlinxCoroutines" }
-kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swings", version = "kotlinxCoroutines" }
 
 # Compose
 # Used by built-in game(s)
 compose-runtime-livedata = {  group = "androidx.compose.runtime", name = "runtime-livedata", version.ref = "compose" }
 
 # Room
-room = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "sqlite" }
@@ -74,7 +73,6 @@ ktor-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor"
 ktor-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 ktor-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-encoding = { group = "io.ktor", name = "ktor-client-encoding", version.ref = "ktor" }
-ktor-serialization = { group = "io.ktor", name = "ktor-client-serialization", version.ref = "ktor" }
 ktor-serialization-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-serialization-protobuf = { group = "io.ktor", name = "ktor-serialization-kotlinx-protobuf", version.ref = "ktor" }
 
@@ -121,7 +119,7 @@ androidmaterial = { group = "com.google.android.material", name = "material", ve
 
 # Extras
 translator = {  group = "com.github.therealbush", name = "translator", version.ref = "translator" }
-kotlin-csv = {  group = "com.github.doyaaaaaken", name = "kotlin-csv-jvm", version.ref = "kotlin-csv" }
+kotlin-csv = {  group = "com.jsoizo", name = "kotlin-csv-jvm", version.ref = "kotlin-csv" }
 timber = {  group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 math3 = { group = "org.apache.commons", name = "commons-math3", version.ref = "math3" }
 toasty = { group = "com.github.GrenderG", name = "Toasty", version.ref = "toasty" }
@@ -146,7 +144,9 @@ room = { id = "androidx.room", version.ref = "room" }
 kotlin-ksp = { id = "com.google.devtools.ksp", version.ref = "kotlin-ksp" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin"}
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+license-report = { id = "com.github.jk1.dependency-license-report", version.ref = "license-report" }
 
 
 [bundles]
 compose-kmp = ['compose-kmp-animation', 'compose-kmp-foundation', 'compose-kmp-material3', 'compose-kmp-ui']
+ktor = ['ktor-core', 'ktor-encoding', 'ktor-content-negotiation', 'ktor-serialization-json', 'ktor-serialization-protobuf']
