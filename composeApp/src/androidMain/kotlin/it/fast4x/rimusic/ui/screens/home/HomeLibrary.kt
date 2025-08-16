@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +63,7 @@ import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
 import it.fast4x.rimusic.utils.CheckMonthlyPlaylist
 import it.fast4x.rimusic.utils.autoSyncToolbutton
+import it.fast4x.rimusic.utils.isAtLeastAndroid6
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -165,6 +165,7 @@ fun HomeLibrary(
     }
     LaunchedEffect( Unit ) {
         if(
+            !isAtLeastAndroid6 ||
             !(Preferences.YOUTUBE_LOGIN.value
             && Preferences.YOUTUBE_SYNC_ID.value.isNotBlank()
             && Preferences.YOUTUBE_PLAYLISTS_SYNC.value)
@@ -279,10 +280,14 @@ fun HomeLibrary(
                             innertubePlaylist = playlist,
                             widthDp = itemSize.size.dp,
                             values = playlistItemValues,
-                            modifier = Modifier.clickable {
+                            navController = null,
+                            onClick = {
                                 search.hideIfEmpty()
 
-                                NavRoutes.YT_PLAYLIST.navigateHere( navController, playlist.id )
+                                NavRoutes.YT_PLAYLIST.navigateHere(
+                                    navController = navController,
+                                    path = "${playlist.id}?useLogin=true"
+                                )
                             }
                         )
                     }
@@ -295,11 +300,8 @@ fun HomeLibrary(
                             widthDp = itemSize.size.dp,
                             values = playlistItemValues,
                             songCount = preview.songCount,
-                            modifier = Modifier.clickable {
-                                search.hideIfEmpty()
-
-                                NavRoutes.localPlaylist.navigateHere( navController, preview.playlist.id )
-                            }
+                            navController = navController,
+                            onClick = search::hideIfEmpty
                         )
                     }
                 }

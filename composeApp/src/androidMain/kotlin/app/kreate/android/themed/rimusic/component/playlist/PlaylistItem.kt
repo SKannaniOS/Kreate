@@ -2,6 +2,7 @@ package app.kreate.android.themed.rimusic.component.playlist
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,11 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastJoinToString
 import androidx.compose.ui.util.fastZip
+import androidx.navigation.NavController
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
+import app.kreate.android.utils.ItemUtils
 import app.kreate.android.utils.scrollingText
 import it.fast4x.innertube.Innertube
 import it.fast4x.rimusic.Database
+import it.fast4x.rimusic.enums.NavRoutes
 import it.fast4x.rimusic.models.Playlist
 import it.fast4x.rimusic.thumbnailShape
 import it.fast4x.rimusic.ui.styling.Appearance
@@ -296,6 +300,8 @@ object PlaylistItem {
     fun VerticalStructure(
         thumbnail: @Composable ColumnScope.() -> Unit,
         widthDp: Dp,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
         modifier: Modifier = Modifier,
         firstLine: @Composable ColumnScope.() -> Unit = {},
         secondLine: @Composable ColumnScope.() -> Unit = {}
@@ -303,6 +309,10 @@ object PlaylistItem {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = modifier.requiredWidth( widthDp )
+                               .combinedClickable(
+                                   onClick = onClick,
+                                   onLongClick = onLongClick
+                               )
         ) {
             thumbnail()
             firstLine()
@@ -313,6 +323,8 @@ object PlaylistItem {
     fun HorizontalStructure(
         thumbnail: @Composable BoxScope.() -> Unit,
         heightDp: Dp,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
         modifier: Modifier = Modifier,
         firstLine: @Composable ColumnScope.() -> Unit = {},
         secondLine: @Composable ColumnScope.() -> Unit = {}
@@ -320,6 +332,10 @@ object PlaylistItem {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = modifier.requiredHeight( heightDp )
+                               .combinedClickable(
+                                   onClick = onClick,
+                                   onLongClick = onLongClick
+                               )
         ) {
             Box(
                 modifier = Modifier.requiredSize( heightDp ),
@@ -335,22 +351,27 @@ object PlaylistItem {
     @Composable
     fun VerticalPlaceholder(
         widthDp: Dp,
-        modifier: Modifier = Modifier
+        modifier: Modifier = Modifier,
+        showTitle: Boolean = false
     ) =
         VerticalStructure(
             widthDp = widthDp,
             modifier = modifier,
             thumbnail = {
-                Box( Modifier.requiredSize( widthDp ).shimmerEffect() )
+                ItemUtils.ThumbnailPlaceholder( widthDp )
             },
-            firstLine = {
+            firstLine = st@ {
+                if( !showTitle ) return@st
+
                 Title(
                     title = "",
                     values = Values.unspecified,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().shimmerEffect()
                 )
-            }
+            },
+            onClick = {},
+            onLongClick = {}
         )
 
     @ExperimentalCoroutinesApi
@@ -359,10 +380,13 @@ object PlaylistItem {
         playlist: Playlist,
         widthDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
         songCount: Int = 0,
         showSongCount: Boolean = true,
-        showPlatformIcon: Boolean = true
+        showPlatformIcon: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
     ) =
         VerticalStructure(
             widthDp = widthDp,
@@ -387,7 +411,18 @@ object PlaylistItem {
             },
             firstLine = {
                 Title( playlist.cleanName(), values, TextAlign.Center )
-            }
+            },
+            onClick = click@ {
+                onClick.invoke()
+
+                if( navController == null ) return@click
+
+                if( playlist.browseId != null && playlist.id == -1L )
+                    NavRoutes.YT_PLAYLIST.navigateHere( navController, playlist.browseId )
+                else
+                    NavRoutes.localPlaylist.navigateHere( navController, playlist.id )
+            },
+            onLongClick = onLongClick
         )
 
     @Composable
@@ -395,8 +430,11 @@ object PlaylistItem {
         innertubePlaylist: Innertube.PlaylistItem,
         widthDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
-        showPlatformIcon: Boolean = true
+        showPlatformIcon: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
     ) =
         VerticalStructure(
             widthDp = widthDp,
@@ -415,7 +453,14 @@ object PlaylistItem {
                     values = values,
                     textAlign = TextAlign.Center
                 )
-            }
+            },
+            onClick = click@ {
+                onClick.invoke()
+
+                if( navController == null ) return@click
+                    NavRoutes.YT_PLAYLIST.navigateHere( navController, innertubePlaylist.key )
+            },
+            onLongClick = onLongClick
         )
 
     @Composable
@@ -423,9 +468,12 @@ object PlaylistItem {
         innertubePlaylist: InnertubePlaylist,
         widthDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
         showSubtitle: Boolean = true,
-        showPlatformIcon: Boolean = true
+        showPlatformIcon: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
     ) =
         VerticalStructure(
             widthDp = widthDp,
@@ -462,7 +510,14 @@ object PlaylistItem {
                     values = values,
                     textAlign = TextAlign.Center
                 )
-            }
+            },
+            onClick = click@ {
+                onClick.invoke()
+
+                if( navController == null ) return@click
+                    NavRoutes.YT_PLAYLIST.navigateHere( navController, innertubePlaylist.id )
+            },
+            onLongClick = onLongClick
         )
 
     @ExperimentalCoroutinesApi
@@ -471,11 +526,14 @@ object PlaylistItem {
         playlist: Playlist,
         heightDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
         songCount: Int = 0,
         showSongCount: Boolean = true,
         showPlatformIcon: Boolean = true,
-        useRandom: Boolean = true
+        useRandom: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
     ) =
         HorizontalStructure(
             heightDp = heightDp,
@@ -501,7 +559,18 @@ object PlaylistItem {
             },
             firstLine = {
                 Title( playlist.cleanName(), values, TextAlign.Start )
-            }
+            },
+            onClick = click@ {
+                onClick.invoke()
+
+                if( navController == null ) return@click
+
+                if( playlist.browseId != null && playlist.id == -1L )
+                    NavRoutes.YT_PLAYLIST.navigateHere( navController, playlist.browseId )
+                else
+                    NavRoutes.localPlaylist.navigateHere( navController, playlist.id )
+            },
+            onLongClick = onLongClick
         )
 
     @ExperimentalCoroutinesApi
@@ -510,9 +579,11 @@ object PlaylistItem {
         innertubePlaylist: Innertube.PlaylistItem,
         heightDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
         showPlatformIcon: Boolean = true,
-        showSubtitle: Boolean = true
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
     ) =
         HorizontalStructure(
             heightDp = heightDp,
@@ -527,7 +598,14 @@ object PlaylistItem {
             },
             firstLine = {
                 Title( innertubePlaylist.title.toString(), values, TextAlign.Start )
-            }
+            },
+            onClick = click@ {
+                onClick.invoke()
+
+                if( navController == null ) return@click
+                    NavRoutes.YT_PLAYLIST.navigateHere( navController, innertubePlaylist.key )
+            },
+            onLongClick = onLongClick
         )
 
     data class Values(

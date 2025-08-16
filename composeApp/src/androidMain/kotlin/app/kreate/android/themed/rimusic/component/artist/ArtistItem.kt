@@ -1,6 +1,7 @@
 package app.kreate.android.themed.rimusic.component.artist
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -23,12 +24,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
 import app.kreate.android.themed.rimusic.component.album.AlbumItem
+import app.kreate.android.utils.ItemUtils
 import app.kreate.android.utils.innertube.toArtist
 import app.kreate.android.utils.scrollingText
 import it.fast4x.innertube.Innertube
+import it.fast4x.rimusic.enums.NavRoutes
 import it.fast4x.rimusic.models.Artist
 import it.fast4x.rimusic.ui.styling.Appearance
 import it.fast4x.rimusic.ui.styling.ColorPalette
@@ -108,6 +112,8 @@ object ArtistItem {
     fun Structure(
         thumbnail: @Composable ColumnScope.() -> Unit,
         widthDp: Dp,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit,
         modifier: Modifier = Modifier,
         firstLine: @Composable ColumnScope.() -> Unit = {},
         secondLine: @Composable ColumnScope.() -> Unit = {},
@@ -115,6 +121,10 @@ object ArtistItem {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = modifier.requiredWidth( widthDp )
+                               .combinedClickable(
+                                   onClick = onClick,
+                                   onLongClick = onLongClick
+                               )
         ) {
             thumbnail()
             firstLine()
@@ -125,21 +135,26 @@ object ArtistItem {
     fun Placeholder(
         widthDp: Dp,
         modifier: Modifier = Modifier,
+        showTitle: Boolean = false
     ) =
         Structure(
             widthDp = widthDp,
             modifier = modifier,
             thumbnail = {
-                Box( Modifier.size(widthDp).shimmerEffect() )
+                ItemUtils.ThumbnailPlaceholder( widthDp )
             },
-            firstLine = {
+            firstLine = st@ {
+                if( !showTitle ) return@st
+
                 Title(
                     title = "",
                     values = Values.unspecified,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().shimmerEffect()
                 )
-            }
+            },
+            onClick = {},
+            onLongClick = {}
         )
 
     @Composable
@@ -147,8 +162,11 @@ object ArtistItem {
         artist: Artist,
         widthDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
-        showTitle: Boolean = true
+        showTitle: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
     ) =
         Structure(
             widthDp = widthDp,
@@ -167,7 +185,14 @@ object ArtistItem {
                     modifier = Modifier.padding( vertical = VERTICAL_SPACING.dp )
                                        .fillMaxWidth( .9f )
                 )
-            }
+            },
+            onClick = {
+                onClick.invoke()
+
+                if( navController != null )
+                    NavRoutes.YT_ARTIST.navigateHere( navController, artist.id )
+            },
+            onLongClick = onLongClick
         )
 
     @Composable
@@ -175,18 +200,24 @@ object ArtistItem {
         innertubeArtist: Innertube.ArtistItem,
         widthDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
-        showTitle: Boolean = true
-    ) = Render( innertubeArtist.asArtist, widthDp, values, modifier, showTitle )
+        showTitle: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
+    ) = Render( innertubeArtist.asArtist, widthDp, values, navController, modifier, showTitle, onClick, onLongClick )
 
     @Composable
     fun Render(
         innertubeArtist: InnertubeArtist,
         widthDp: Dp,
         values: Values,
+        navController: NavController?,
         modifier: Modifier = Modifier,
-        showTitle: Boolean = true
-    ) = Render( innertubeArtist.toArtist, widthDp, values, modifier, showTitle )
+        showTitle: Boolean = true,
+        onClick: () -> Unit = {},
+        onLongClick: () -> Unit = {}
+    ) = Render( innertubeArtist.toArtist, widthDp, values, navController, modifier, showTitle, onClick, onLongClick )
 
     data class Values(
         val titleTextStyle: TextStyle,

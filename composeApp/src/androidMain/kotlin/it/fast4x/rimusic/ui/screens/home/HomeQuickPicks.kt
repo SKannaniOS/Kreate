@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastDistinctBy
 import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastFilterNotNull
 import androidx.compose.ui.util.fastMapNotNull
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -69,6 +70,7 @@ import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.android.themed.rimusic.component.artist.ArtistItem
 import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.android.utils.ItemUtils
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toMediaItem
 import app.kreate.android.utils.scrollingText
@@ -90,7 +92,6 @@ import it.fast4x.rimusic.enums.NavRoutes
 import it.fast4x.rimusic.enums.NavigationBarPosition
 import it.fast4x.rimusic.enums.PlayEventsType
 import it.fast4x.rimusic.enums.UiType
-import it.fast4x.rimusic.isVideoEnabled
 import it.fast4x.rimusic.models.Song
 import it.fast4x.rimusic.service.MyDownloadHelper
 import it.fast4x.rimusic.typography
@@ -100,11 +101,8 @@ import it.fast4x.rimusic.ui.components.themed.Loader
 import it.fast4x.rimusic.ui.components.themed.Menu
 import it.fast4x.rimusic.ui.components.themed.MenuEntry
 import it.fast4x.rimusic.ui.components.themed.MultiFloatingActionsContainer
-import it.fast4x.rimusic.ui.components.themed.TextPlaceholder
 import it.fast4x.rimusic.ui.components.themed.Title
 import it.fast4x.rimusic.ui.components.themed.Title2Actions
-import it.fast4x.rimusic.ui.components.themed.TitleMiniSection
-import it.fast4x.rimusic.ui.items.VideoItem
 import it.fast4x.rimusic.ui.screens.settings.isYouTubeLoggedIn
 import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
@@ -118,7 +116,6 @@ import it.fast4x.rimusic.utils.center
 import it.fast4x.rimusic.utils.color
 import it.fast4x.rimusic.utils.forcePlay
 import it.fast4x.rimusic.utils.isLandscape
-import it.fast4x.rimusic.utils.playVideo
 import it.fast4x.rimusic.utils.quickPicsDiscoverPageKey
 import it.fast4x.rimusic.utils.quickPicsHomePageKey
 import it.fast4x.rimusic.utils.quickPicsRelatedPageKey
@@ -154,9 +151,6 @@ import kotlin.time.Duration.Companion.days
 @Composable
 fun HomeQuickPicks(
     navController: NavController,
-    onAlbumClick: (String) -> Unit,
-    onArtistClick: (String) -> Unit,
-    onPlaylistClick: (String) -> Unit,
     onSearchClick: () -> Unit,
     onMoodClick: (mood: Innertube.Mood.Item) -> Unit,
     onSettingsClick: () -> Unit
@@ -618,14 +612,7 @@ fun HomeQuickPicks(
                                     items = newReleaseAlbumsFiltered.distinctBy { it.key },
                                     key = System::identityHashCode
                                 ) { album ->
-                                    AlbumItem.Vertical(
-                                        innertubeAlbum = album,
-                                        widthDp = albumThumbnailSizeDp,
-                                        values = albumItemValues,
-                                        modifier = Modifier.clickable {
-                                            onAlbumClick( album.key )
-                                        }
-                                    )
+                                    AlbumItem.Vertical( album, albumThumbnailSizeDp, albumItemValues, navController )
                                 }
                             }
 
@@ -646,14 +633,7 @@ fun HomeQuickPicks(
                                 items = page.newReleaseAlbums.distinctBy { it.key },
                                 key = System::identityHashCode
                             ) { album ->
-                                AlbumItem.Vertical(
-                                    innertubeAlbum = album,
-                                    widthDp = albumThumbnailSizeDp,
-                                    values = albumItemValues,
-                                    modifier = Modifier.clickable {
-                                        onAlbumClick( album.key )
-                                    }
-                                )
+                                AlbumItem.Vertical( album, albumThumbnailSizeDp, albumItemValues, navController )
                             }
                         }
                     }
@@ -675,14 +655,7 @@ fun HomeQuickPicks(
                                 items = albums.distinctBy { it.key },
                                 key = System::identityHashCode
                             ) { album ->
-                                AlbumItem.Vertical(
-                                    innertubeAlbum = album,
-                                    widthDp = albumThumbnailSizeDp,
-                                    values = albumItemValues,
-                                    modifier = Modifier.clickable {
-                                        onAlbumClick( album.key )
-                                    }
-                                )
+                                AlbumItem.Vertical( album, albumThumbnailSizeDp, albumItemValues, navController )
                             }
                         }
                     }
@@ -707,9 +680,7 @@ fun HomeQuickPicks(
                                     innertubeArtist = artist,
                                     widthDp = artistThumbnailSizeDp,
                                     values = artistItemValues,
-                                    modifier = Modifier.clickable {
-                                        onArtistClick(artist.key)
-                                    }
+                                    navController = navController
                                 )
                             }
                         }
@@ -737,9 +708,7 @@ fun HomeQuickPicks(
                                     innertubePlaylist = playlist,
                                     widthDp = playlistThumbnailSizeDp,
                                     values = playlistItemValues,
-                                    modifier = Modifier.clickable {
-                                        NavRoutes.YT_PLAYLIST.navigateHere( navController, playlist.key )
-                                    }
+                                    navController = navController
                                 )
                             }
                         }
@@ -821,9 +790,7 @@ fun HomeQuickPicks(
                                         widthDp = playlistThumbnailSizeDp,
                                         values = playlistItemValues,
                                         showSongCount = false,
-                                        modifier = Modifier.clickable {
-                                            NavRoutes.localPlaylist.navigateHere( navController, preview.playlist.id )
-                                        }
+                                        navController = navController
                                     )
                                 }
                             }
@@ -899,9 +866,7 @@ fun HomeQuickPicks(
                                                     innertubePlaylist = playlist,
                                                     widthDp = playlistThumbnailSizeDp,
                                                     values = playlistItemValues,
-                                                    modifier = Modifier.clickable {
-                                                        onPlaylistClick( playlist.id )
-                                                    }
+                                                    navController = navController
                                                 )
                                             }
                                         }
@@ -1044,8 +1009,6 @@ fun HomeQuickPicks(
                         println("homePage() in HomeYouTubeMusic sections: ${it.title} ${it.items.size}")
                         println("homePage() in HomeYouTubeMusic sections items: ${it.items}")
 
-                        TitleMiniSection(it.label ?: "", modifier = Modifier.padding(horizontal = 16.dp).padding(top = 14.dp, bottom = 4.dp))
-
                         BasicText(
                             text = it.title,
                             style = typography().l.semiBold.color(colorPalette().text),
@@ -1060,88 +1023,12 @@ fun HomeQuickPicks(
                                 }
                             }
                         }
-                        val songItemValues = remember( colorPalette, typography ) {
-                            SongItem.Values.from( colorPalette, typography )
-                        }
-                        LazyRow(
-                            contentPadding = endPaddingValues,
-                            horizontalArrangement = Arrangement.spacedBy( ArtistItem.COLUMN_SPACING.dp )
-                        ) {
-                            items(it.items) { item ->
-                                when (item) {
-                                    is Innertube.SongItem -> {
-                                        println("Innertube homePage SongItem: ${item.info?.name}")
-                                        SongItem.Render(
-                                            innertubeSong = item,
-                                            context = context,
-                                            binder = binder,
-                                            hapticFeedback = hapticFeedback,
-                                            values = songItemValues,
-                                            isPlaying = item.key == currentlyPlaying,
-                                            navController = navController,
-                                            onClick = {
-                                                binder.player.forcePlay( item.asMediaItem )
-                                            },
-                                        )
-                                    }
-
-                                    is Innertube.AlbumItem -> {
-                                        println("Innertube homePage AlbumItem: ${item.info?.name}")
-                                        AlbumItem.Vertical(
-                                            innertubeAlbum = item,
-                                            widthDp = albumThumbnailSizeDp,
-                                            values = albumItemValues,
-                                            modifier = Modifier.clickable {
-                                                NavRoutes.YT_ALBUM.navigateHere( navController, item.key )
-                                            }
-                                        )
-                                    }
-
-                                    is Innertube.ArtistItem -> {
-                                        println("Innertube homePage ArtistItem: ${item.info?.name}")
-                                        ArtistItem.Render(
-                                            innertubeArtist = item,
-                                            widthDp = artistThumbnailSizeDp,
-                                            values = artistItemValues,
-                                            modifier = Modifier.clickable {
-                                                NavRoutes.YT_ARTIST.navigateHere( navController, item.key )
-                                            }
-                                        )
-                                    }
-
-                                    is Innertube.PlaylistItem -> {
-                                        println("Innertube homePage PlaylistItem: ${item.info?.name}")
-                                        PlaylistItem.Vertical(
-                                            innertubePlaylist = item,
-                                            widthDp = playlistThumbnailSizeDp,
-                                            values = playlistItemValues,
-                                            modifier = Modifier.clickable {
-                                                NavRoutes.YT_PLAYLIST.navigateHere( navController, item.key )
-                                            }
-                                        )
-                                    }
-
-                                    is Innertube.VideoItem -> {
-                                        println("Innertube homePage VideoItem: ${item.info?.name}")
-                                        VideoItem(
-                                            video = item,
-                                            thumbnailHeightDp = playlistThumbnailSizeDp,
-                                            thumbnailWidthDp = playlistThumbnailSizeDp,
-                                            modifier = Modifier.clickable(onClick = {
-                                                binder?.stopRadio()
-                                                if (isVideoEnabled())
-                                                    binder?.player?.playVideo(item.asMediaItem)
-                                                else
-                                                    binder?.player?.forcePlay(item.asMediaItem)
-                                            })
-                                        )
-                                    }
-
-                                    null -> {}
-                                }
-
-                            }
-                        }
+                        ItemUtils.LazyRowItem(
+                            navController = navController,
+                            innertubeItems = it.items.fastFilterNotNull(),
+                            thumbnailSizeDp = albumThumbnailSizeDp,
+                            currentlyPlaying = currentlyPlaying
+                        )
                     }
                 } ?: if (!isYouTubeLoggedIn()) BasicText(
                     text = stringResource(R.string.log_in_to_ytm),
@@ -1159,30 +1046,22 @@ fun HomeQuickPicks(
                         SongItem.Placeholder()
                     }
 
-                    TextPlaceholder( sectionTextModifier.shimmerEffect() )
+                    repeat( 2 ) {
+                        Text(
+                            text = "",
+                            style = typography.l.semiBold,
+                            modifier = Modifier.padding( 16.dp, 24.dp, 16.dp, 8.dp )
+                                               .fillMaxWidth( .45f )
+                                               .shimmerEffect()
+                        )
 
-                    Row {
-                        repeat(2) {
+                        ItemUtils.PlaceholderRowItem {
                             AlbumItem.VerticalPlaceholder( albumThumbnailSizeDp )
-                        }
-                    }
-
-                    TextPlaceholder( sectionTextModifier.shimmerEffect() )
-
-                    Row {
-                        repeat(2) {
-                            PlaylistItem.VerticalPlaceholder( albumThumbnailSizeDp )
                         }
                     }
                 }
 
-
-
-
-
-
                 Spacer(modifier = Modifier.height(Dimensions.bottomSpacer))
-
 
                 //} ?:
 
