@@ -20,14 +20,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.kreate.android.BuildConfig
 import app.kreate.android.R
-import it.fast4x.rimusic.appContext
-import it.fast4x.rimusic.colorPalette
-import it.fast4x.rimusic.typography
+import it.fast4x.rimusic.ui.styling.LocalAppearance
 import it.fast4x.rimusic.utils.bold
 import me.knighthat.component.dialog.Dialog
 import java.util.stream.Stream
@@ -68,8 +67,7 @@ open class ChangelogsDialog: Dialog {
                 }
             }
         }
-        if( sections.isNotEmpty() )
-            packSection()
+        currentTitle?.let( ::packSection )
 
         return sections
     }
@@ -82,12 +80,15 @@ open class ChangelogsDialog: Dialog {
 
     @Composable
     override fun DialogBody() {
+        val context = LocalContext.current
+        val (colorPalette, typography) = LocalAppearance.current
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val sections = remember {
                 parseReleaseNotes(
-                    appContext().resources
+                    lines = context.resources
                                 .openRawResource( R.raw.release_notes )
                                 .bufferedReader( Charsets.UTF_8 )
                                 .lines()
@@ -97,15 +98,15 @@ open class ChangelogsDialog: Dialog {
 
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = colorPalette().background0,
-                contentColor = colorPalette().text,
+                containerColor = colorPalette.background0,
+                contentColor = colorPalette.text,
                 indicator = { tabPositions ->
                     val selectedPosition by remember {
                         derivedStateOf { tabPositions[selectedTab] }
                     }
                     TabRowDefaults.PrimaryIndicator(
                         modifier = Modifier.tabIndicatorOffset( selectedPosition ),
-                        color = colorPalette().accent,
+                        color = colorPalette.accent,
                         width = selectedPosition.width
                     )
                 },
@@ -118,7 +119,7 @@ open class ChangelogsDialog: Dialog {
                     ) {
                         BasicText(
                             text = section.title,
-                            style = typography().m.bold.copy( color = colorPalette().text )
+                            style = typography.m.bold.copy( color = colorPalette.text )
                         )
                     }
                 }
@@ -148,7 +149,7 @@ open class ChangelogsDialog: Dialog {
                 ) {
                     BasicText(
                         text = it,
-                        style = typography().xs
+                        style = typography.xs
                     )
                 }
             }
