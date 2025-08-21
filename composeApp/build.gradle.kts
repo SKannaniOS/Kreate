@@ -190,8 +190,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-defaults.txt"),
+                "debug-proguard-rules.pro"
             )
         }
 
@@ -270,10 +270,6 @@ android {
         }
     }
 
-    sourceSets.all {
-        kotlin.srcDir("src/$name/kotlin")
-    }
-
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_21
@@ -319,7 +315,7 @@ room {
 }
 
 dependencies {
-    ksp( libs.room.compiler )
+    kspAndroidTestRelease( libs.room.compiler )
 
     coreLibraryDesugaring(libs.desugaring.nio)
 }

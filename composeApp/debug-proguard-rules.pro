@@ -1,14 +1,9 @@
 # This is an opensource project
 # obfuscating code only makes debugging harder
 -dontobfuscate
--renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
 
--optimizationpasses 5
-
 -dontpreverify
-
--repackageclasses ''
 
 ## Rules for NewPipeExtractor
 -dontwarn java.beans.BeanDescriptor
