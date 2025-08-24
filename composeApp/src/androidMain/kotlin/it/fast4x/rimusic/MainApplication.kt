@@ -2,11 +2,11 @@ package it.fast4x.rimusic
 
 import android.app.Application
 import androidx.compose.runtime.getValue
+import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
 import app.kreate.android.utils.CrashHandler
-import it.fast4x.rimusic.utils.FileLoggingTree
+import app.kreate.android.utils.logging.RollingFileLoggingTree
 import timber.log.Timber
-import java.io.File
 
 class MainApplication : Application() {
 
@@ -19,21 +19,14 @@ class MainApplication : Application() {
 
         Thread.setDefaultUncaughtExceptionHandler( CrashHandler(this) )
 
-        /**** LOG *********/
-        val logEnabled by Preferences.DEBUG_LOG
-        if (logEnabled) {
-            val dir = filesDir.resolve("logs").also {
-                if (it.exists()) return@also
-                it.mkdir()
-            }
+        val isRuntimeLogEnabled by Preferences.RUNTIME_LOG
+        val fileCount by Preferences.RUNTIME_LOG_FILE_COUNT
+        val maxSizePerFile by Preferences.RUNTIME_LOG_MAX_SIZE_PER_FILE
+        if( isRuntimeLogEnabled && fileCount > 0 && maxSizePerFile > 0 )
+            Timber.plant( RollingFileLoggingTree(cacheDir, fileCount, maxSizePerFile) )
 
-            Timber.plant(FileLoggingTree(File(dir, "RiMusic_log.txt")))
-            Timber.d("Log enabled at ${dir.absolutePath}")
-        } else {
-            Timber.uprootAll()
-            Timber.plant(Timber.DebugTree())
-        }
-        /**** LOG *********/
+        if( BuildConfig.DEBUG || (isRuntimeLogEnabled && Preferences.RUNTIME_LOG_SHARED.value) )
+            Timber.plant( Timber.DebugTree() )
     }
 
     override fun onTerminate() {
