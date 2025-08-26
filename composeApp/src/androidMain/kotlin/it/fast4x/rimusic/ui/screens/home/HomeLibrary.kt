@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastMapNotNull
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
@@ -41,6 +42,7 @@ import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.tab.ItemSize
 import app.kreate.android.themed.rimusic.component.tab.Sort
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
+import app.kreate.android.utils.innertube.InnertubeUtils
 import it.fast4x.compose.persist.persistList
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MONTHLY_PREFIX
@@ -63,7 +65,6 @@ import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
 import it.fast4x.rimusic.utils.CheckMonthlyPlaylist
 import it.fast4x.rimusic.utils.autoSyncToolbutton
-import it.fast4x.rimusic.utils.isAtLeastAndroid6
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -164,17 +165,13 @@ fun HomeLibrary(
                 .collectLatest { items = it }
     }
     LaunchedEffect( Unit ) {
-        if(
-            !isAtLeastAndroid6 ||
-            !(Preferences.YOUTUBE_LOGIN.value
-            && Preferences.YOUTUBE_SYNC_ID.value.isNotBlank()
-            && Preferences.YOUTUBE_PLAYLISTS_SYNC.value)
-        ) return@LaunchedEffect
+        if( !InnertubeUtils.isLoggedIn || !Preferences.YOUTUBE_PLAYLISTS_SYNC.value )
+            return@LaunchedEffect
         
         CoroutineScope( Dispatchers.IO ).launch {
             Innertube.library( CURRENT_LOCALE )
-                     .onSuccess {
-                         onlinePlaylists = it
+                     .onSuccess { results ->
+                         onlinePlaylists = results.fastMapNotNull { it as? InnertubePlaylist }
                      }
                      .onFailure {
                          it.printStackTrace()

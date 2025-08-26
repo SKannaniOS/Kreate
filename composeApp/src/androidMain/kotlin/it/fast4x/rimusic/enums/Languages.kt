@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import app.kreate.android.R
 import it.fast4x.rimusic.appContext
 import me.knighthat.enums.TextView
+import me.knighthat.innertube.Localized
 import java.util.Locale
 
 /**
@@ -71,25 +72,25 @@ enum class Languages(
     Vietnamese( "vi" );
 
     @get:Composable
-    override val text: String by lazy {
-        if( this == System )
-            return@lazy appContext().getString( R.string.system_language )
+    @get: Localized
+    override val text: String
+        get() {
+            if( this === System )
+                return appContext().getString( R.string.system_language )
 
-        val parts = code.split( "-", "_" )
-        val locale = when( parts.size ) {
-            1 -> Locale(parts[0])
-            2 -> {
-                // Both Cyrillic and Latin of Serbian are scripts, not region
-                if( parts[0] == "sr" )
-                    Locale.Builder()
-                          .setLanguage( parts[0] )
-                          .setScript( parts[1] )
-                          .build()
-                else
-                    Locale(parts[0], parts[1])
+            val parts = code.split( "-", "_" )
+            check( parts.isNotEmpty() && parts.size <= 2 ) {
+                "Invalid parts size: $parts"
             }
-            else -> throw UnsupportedOperationException("Unsupported locale parts: $parts")
+
+            val builder = Locale.Builder().setLanguage( parts[0] )
+            if( parts.size == 2 )
+                if( parts[0] == "sr" )
+                    builder.setScript( parts[1] )
+                else
+                    builder.setRegion( parts[1] )
+
+            val locale = builder.build()
+            return locale.getDisplayName( locale )
         }
-        locale.getDisplayName( locale )
-    }
 }
