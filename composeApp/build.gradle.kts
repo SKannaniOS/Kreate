@@ -37,9 +37,7 @@ kotlin {
         }
     }
 
-    jvm("desktop")
-
-
+    jvm()
 
     sourceSets {
         all {
@@ -305,7 +303,7 @@ room {
 }
 
 dependencies {
-    kspAndroidTestRelease( libs.room.compiler )
+    add( "kspAndroid", libs.room.compiler )
 
     coreLibraryDesugaring(libs.desugaring.nio)
 }
