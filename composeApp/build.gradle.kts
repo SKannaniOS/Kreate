@@ -60,8 +60,6 @@ kotlin {
             implementation(libs.nanojson)
             implementation(libs.androidx.webkit)
 
-            // Related to built-in game, maybe removed in future?
-            implementation(libs.compose.runtime.livedata)
             implementation( libs.androidx.glance.widgets )
             implementation( libs.androidx.constraintlayout )
 
@@ -146,8 +144,8 @@ android {
         applicationId = "me.knighthat.kreate"
         minSdk = 21
         targetSdk = 36
-        versionCode = 114
-        versionName = "1.6.7"
+        versionCode = 115
+        versionName = "1.7.0"
 
         /*
                 UNIVERSAL VARIABLES
