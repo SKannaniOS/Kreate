@@ -93,6 +93,7 @@ import coil3.toBitmap
 import com.kieronquinn.monetcompat.core.MonetActivityAccessException
 import com.kieronquinn.monetcompat.core.MonetCompat
 import com.kieronquinn.monetcompat.interfaces.MonetColorsChangedListener
+import dagger.hilt.android.AndroidEntryPoint
 import dev.kdrag0n.monet.theme.ColorScheme
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
@@ -129,7 +130,6 @@ import it.fast4x.rimusic.ui.styling.colorPaletteOf
 import it.fast4x.rimusic.ui.styling.customColorPalette
 import it.fast4x.rimusic.ui.styling.dynamicColorPaletteOf
 import it.fast4x.rimusic.ui.styling.typographyOf
-import it.fast4x.rimusic.utils.InitDownloader
 import it.fast4x.rimusic.utils.LocalMonetCompat
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.forcePlay
@@ -161,6 +161,7 @@ import java.util.Objects
 import kotlin.math.sqrt
 import kotlin.system.exitProcess
 
+@AndroidEntryPoint
 @UnstableApi
 class MainActivity :
 //MonetCompatActivity(),
@@ -900,8 +901,6 @@ class MainActivity :
 
                     onDispose { player.removeListener(listener) }
                 }
-
-                InitDownloader()
 
             }
 

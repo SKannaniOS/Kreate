@@ -12,7 +12,7 @@ import androidx.media3.exoplayer.offline.DownloadNotificationHelper
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import app.kreate.android.R
-import it.fast4x.rimusic.service.MyDownloadHelper.DOWNLOAD_NOTIFICATION_CHANNEL_ID
+import app.kreate.android.service.DownloadHelper
 
 private const val JOB_ID = 8888
 private const val FOREGROUND_NOTIFICATION_ID = 8989
@@ -21,7 +21,7 @@ private const val FOREGROUND_NOTIFICATION_ID = 8989
 class MyDownloadService : DownloadService(
     FOREGROUND_NOTIFICATION_ID,
     DEFAULT_FOREGROUND_NOTIFICATION_UPDATE_INTERVAL,
-    DOWNLOAD_NOTIFICATION_CHANNEL_ID,
+    DownloadHelper.DOWNLOAD_NOTIFICATION_CHANNEL_ID,
     R.string.download, 0
 ) {
 
@@ -29,9 +29,9 @@ class MyDownloadService : DownloadService(
 
         // This will only happen once, because getDownloadManager is guaranteed to be called only once
         // in the life cycle of the process.
-        val downloadManager: DownloadManager = MyDownloadHelper.getDownloadManager(this)
+        val downloadManager: DownloadManager = MyDownloadHelper.instance.downloadManager
         val downloadNotificationHelper: DownloadNotificationHelper =
-            MyDownloadHelper.getDownloadNotificationHelper(this)
+            MyDownloadHelper.getDownloadNotificationHelper()
         downloadManager.addListener(
             TerminalStateNotificationHelper(
                 this,
@@ -53,7 +53,7 @@ class MyDownloadService : DownloadService(
         .Builder(
             /* context = */ this,
             /* notification = */ MyDownloadHelper
-                .getDownloadNotificationHelper(this)
+                .getDownloadNotificationHelper()
                 .buildProgressNotification(
                 /* context            = */ this,
                 /* smallIcon          = */ R.drawable.download_progress,
@@ -63,7 +63,7 @@ class MyDownloadService : DownloadService(
                 /* notMetRequirements = */ notMetRequirements
             )
         )
-        .setChannelId(DOWNLOAD_NOTIFICATION_CHANNEL_ID)
+        .setChannelId(DownloadHelper.DOWNLOAD_NOTIFICATION_CHANNEL_ID)
         /*
         // Add action in notification
         .addAction(

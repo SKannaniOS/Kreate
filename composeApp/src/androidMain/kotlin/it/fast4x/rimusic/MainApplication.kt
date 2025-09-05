@@ -6,8 +6,10 @@ import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
 import app.kreate.android.utils.CrashHandler
 import app.kreate.android.utils.logging.RollingFileLoggingTree
+import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 
+@HiltAndroidApp
 class MainApplication : Application() {
 
     override fun onCreate() {

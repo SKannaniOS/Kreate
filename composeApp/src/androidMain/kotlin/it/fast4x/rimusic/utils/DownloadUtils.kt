@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
@@ -20,14 +19,6 @@ import it.fast4x.rimusic.service.modern.PlayerServiceModern
 import it.fast4x.rimusic.service.modern.isLocal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
-
-@UnstableApi
-@Composable
-fun InitDownloader() {
-    val context = LocalContext.current
-    MyDownloadHelper.getDownloadManager(context)
-    MyDownloadHelper.getDownloads()
-}
 
 
 @UnstableApi
@@ -100,11 +91,11 @@ fun manageDownload(
     if (mediaItem.isLocal) return
 
     if (downloadState) {
-        MyDownloadHelper.removeDownload(context = context, mediaItem = mediaItem)
+        MyDownloadHelper.removeDownload(mediaItem = mediaItem)
     }
     else {
         if (isNetworkAvailable(context)) {
-            MyDownloadHelper.addDownload(context = context, mediaItem = mediaItem)
+            MyDownloadHelper.addDownload(mediaItem = mediaItem)
         }
     }
 

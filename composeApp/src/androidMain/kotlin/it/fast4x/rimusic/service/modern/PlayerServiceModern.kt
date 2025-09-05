@@ -43,11 +43,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.Cache
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.NoOpCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -71,6 +67,7 @@ import androidx.media3.session.SessionToken
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
+import app.kreate.android.service.DownloadHelper
 import app.kreate.android.service.createDataSourceFactory
 import app.kreate.android.service.newpipe.NewPipeDownloader
 import app.kreate.android.service.player.ExoPlayerListener
@@ -82,12 +79,12 @@ import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toMediaItem
 import app.kreate.android.widget.Widget
 import com.google.common.util.concurrent.MoreExecutors
+import dagger.hilt.android.AndroidEntryPoint
 import it.fast4x.innertube.models.NavigationEndpoint
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MainActivity
 import it.fast4x.rimusic.appContext
 import it.fast4x.rimusic.enums.AudioQualityFormat
-import it.fast4x.rimusic.enums.ExoPlayerCacheLocation
 import it.fast4x.rimusic.enums.PresetsReverb
 import it.fast4x.rimusic.enums.WallpaperType
 import it.fast4x.rimusic.extensions.connectivity.AndroidConnectivityObserverLegacy
@@ -144,7 +141,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import kotlin.io.path.createTempDirectory
+import javax.inject.Inject
+import javax.inject.Named
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 import android.os.Binder as AndroidBinder
@@ -156,11 +154,17 @@ const val LOCAL_KEY_PREFIX = "local:"
 val MediaItem.isLocal get() = mediaId.startsWith(LOCAL_KEY_PREFIX)
 val Song.isLocal get() = id.startsWith(LOCAL_KEY_PREFIX)
 
+@AndroidEntryPoint
 @UnstableApi
 class PlayerServiceModern:
     MediaLibraryService(),
     PlaybackStatsListener.Callback,
-    SharedPreferences.OnSharedPreferenceChangeListener {
+    SharedPreferences.OnSharedPreferenceChangeListener
+{
+
+    @Inject @Named("cache") lateinit var cache: Cache
+    @Inject lateinit var downloadHelper: DownloadHelper
+    @Inject @Named("downloadCache") lateinit var downloadCache: Cache
 
     private lateinit var listener: ExoPlayerListener
     private lateinit var volumeFader: VolumeFader
@@ -171,8 +175,6 @@ class PlayerServiceModern:
     private var mediaLibrarySessionCallback: MediaLibrarySessionCallback =
         MediaLibrarySessionCallback(this, Database, MyDownloadHelper)
     lateinit var player: ExoPlayer
-    lateinit var cache: Cache
-    lateinit var downloadCache: Cache
     private lateinit var bitmapProvider: BitmapProvider
     private var isPersistentQueueEnabled: Boolean = false
     private var isclosebackgroundPlayerEnabled = false
@@ -205,33 +207,6 @@ class PlayerServiceModern:
     private var notificationManager: NotificationManager? = null
 
     private lateinit var notificationActionReceiver: NotificationActionReceiver
-
-    private fun initCache(): Cache {
-        val fromSetting by Preferences.EXO_CACHE_SIZE
-
-        val cacheEvictor = when( fromSetting ) {
-            0L, Long.MAX_VALUE -> NoOpCacheEvictor()
-            else -> LeastRecentlyUsedCacheEvictor( fromSetting )
-        }
-        val cacheDir = when( fromSetting ) {
-            // Temporary directory deletes itself after close
-            // It means songs remain on device as long as it's open
-            0L -> createTempDirectory( CACHE_DIRNAME ).toFile()
-
-            // Looks a bit ugly but what it does is
-            // check location set by user and return
-            // appropriate path with [CACHE_DIRNAME] appended.
-            else -> when( Preferences.EXO_CACHE_LOCATION.value ) {
-                ExoPlayerCacheLocation.System  -> cacheDir
-                ExoPlayerCacheLocation.Private -> filesDir
-            }.resolve( CACHE_DIRNAME )
-        }
-
-        // Ensure this location exists
-        cacheDir.mkdirs()
-
-        return SimpleCache( cacheDir, cacheEvictor, StandaloneDatabaseProvider(this) )
-    }
 
     private fun onMediaItemTransition( mediaItem: MediaItem? ) {
         updateBitmap()
@@ -313,8 +288,7 @@ class PlayerServiceModern:
 
         audioQualityFormat = Preferences.AUDIO_QUALITY.value
 
-        cache = initCache()
-        downloadCache = MyDownloadHelper.getDownloadCache( applicationContext )
+        MyDownloadHelper.instance = this.downloadHelper
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(createMediaSourceFactory())
@@ -425,7 +399,7 @@ class PlayerServiceModern:
                 updateDownloadedState()
             }
         }
-        MyDownloadHelper.getDownloadManager(this).addListener(downloadListener)
+        MyDownloadHelper.instance.downloadManager.addListener(downloadListener)
 
         notificationActionReceiver = NotificationActionReceiver(player)
 
@@ -576,7 +550,7 @@ class PlayerServiceModern:
             mediaSession.release()
             cache.release()
             //downloadCache.release()
-            MyDownloadHelper.getDownloadManager(this).removeListener(downloadListener)
+            MyDownloadHelper.instance.downloadManager.removeListener(downloadListener)
 
             loudnessEnhancer?.release()
 
@@ -896,7 +870,7 @@ class PlayerServiceModern:
     fun updateDownloadedState() {
         if (currentSong.value == null) return
         val mediaId = currentSong.value!!.id
-        val downloads = MyDownloadHelper.downloads.value
+        val downloads = MyDownloadHelper.instance.downloads.value
         currentSongStateDownload.value = downloads[mediaId]?.state ?: Download.STATE_STOPPED
         /*
         if (downloads[currentSong.value?.id]?.state == Download.STATE_COMPLETED) {
@@ -1165,7 +1139,7 @@ class PlayerServiceModern:
             }
 
             currentSong.value
-                ?.let { MyDownloadHelper.autoDownloadWhenLiked(this@PlayerServiceModern, it.asMediaItem) }
+                ?.let { MyDownloadHelper.autoDownloadWhenLiked(it.asMediaItem) }
         }
 
         fun toggleDownload() {
