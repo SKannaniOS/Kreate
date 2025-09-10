@@ -10,14 +10,12 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import app.kreate.android.Preferences
-import app.kreate.android.service.DownloadHelper
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import it.fast4x.rimusic.enums.ExoPlayerCacheLocation
-import me.knighthat.impl.DownloadHelperImpl
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.io.path.createTempDirectory
@@ -82,11 +80,4 @@ object CacheModule {
 
         return initCache( context, Preferences.EXO_DOWNLOAD_SIZE, DOWNLOAD_CACHE_DIRNAME )
     }
-
-    @Provides
-    @Singleton
-    fun providesDownloadHelper(
-        @ApplicationContext context: Context,
-        @Named("downloadCache") downloadCache: Cache
-    ): DownloadHelper = DownloadHelperImpl(context, downloadCache)
 }
