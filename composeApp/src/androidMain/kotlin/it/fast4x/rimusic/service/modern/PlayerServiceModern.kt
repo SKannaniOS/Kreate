@@ -56,7 +56,11 @@ import androidx.media3.session.SessionToken
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
+<<<<<<< HEAD
 import app.kreate.android.service.DownloadHelper
+=======
+import app.kreate.android.service.createDataSourceFactory
+>>>>>>> upstream/main
 import app.kreate.android.service.innertube.InnertubeProvider
 import app.kreate.android.service.newpipe.NewPipeDownloader
 import app.kreate.android.service.player.ExoPlayerListener
@@ -194,6 +198,37 @@ class PlayerServiceModern:
 
     private lateinit var notificationActionReceiver: NotificationActionReceiver
 
+<<<<<<< HEAD
+=======
+    private fun initCache(): Cache {
+        val fromSetting by Preferences.EXO_CACHE_SIZE
+
+        val cacheEvictor = when( fromSetting ) {
+            0L, Long.MAX_VALUE -> NoOpCacheEvictor()
+            else -> LeastRecentlyUsedCacheEvictor( fromSetting )
+        }
+        val cacheDir = when( fromSetting ) {
+            // Temporary directory deletes itself after close
+            // It means songs remain on device as long as it's open
+            0L -> createTempDirectory( CACHE_DIRNAME ).toFile()
+
+            // Looks a bit ugly but what it does is
+            // check location set by user and return
+            // appropriate path with [CACHE_DIRNAME] appended.
+            else -> when( Preferences.EXO_CACHE_LOCATION.value ) {
+                ExoPlayerCacheLocation.System,
+                ExoPlayerCacheLocation.SPLIT    -> cacheDir
+                ExoPlayerCacheLocation.Private  -> filesDir
+            }.resolve( CACHE_DIRNAME )
+        }
+
+        // Ensure this location exists
+        cacheDir.mkdirs()
+
+        return SimpleCache( cacheDir, cacheEvictor, StandaloneDatabaseProvider(this) )
+    }
+
+>>>>>>> upstream/main
     private fun onMediaItemTransition( mediaItem: MediaItem? ) {
         updateBitmap()
         listener.updateMediaControl( this, player )
