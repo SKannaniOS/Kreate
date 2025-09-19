@@ -55,6 +55,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionToken
 import app.kreate.android.Preferences
 import app.kreate.android.R
+<<<<<<< HEAD
 import app.kreate.android.coil3.ImageFactory
 <<<<<<< HEAD
 import app.kreate.android.service.DownloadHelper
@@ -62,6 +63,9 @@ import app.kreate.android.service.DownloadHelper
 import app.kreate.android.service.createDataSourceFactory
 >>>>>>> upstream/main
 import app.kreate.android.service.innertube.InnertubeProvider
+=======
+import app.kreate.android.service.createDataSourceFactory
+>>>>>>> upstream/main
 import app.kreate.android.service.newpipe.NewPipeDownloader
 import app.kreate.android.service.player.ExoPlayerListener
 import app.kreate.android.service.player.VolumeFader
@@ -252,14 +256,6 @@ class PlayerServiceModern:
 
     @kotlin.OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     override fun onCreate() {
-        // When persistent queue is enabled, Android
-        // will start this service before MainApplication,
-        // this will cause [Settings.preferences] to
-        // throw error because it isn't init yet.
-        // Problem can be solved by loading it here
-        Preferences.load( this )
-        NewInnertube.setProvider( InnertubeProvider() )
-        ImageFactory.init( this )
         NewPipe.init( NewPipeDownloader() )
 
         super.onCreate()

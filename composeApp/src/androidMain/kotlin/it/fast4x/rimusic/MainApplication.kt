@@ -4,9 +4,15 @@ import android.app.Application
 import androidx.compose.runtime.getValue
 import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
+import app.kreate.android.coil3.ImageFactory
+import app.kreate.android.service.innertube.InnertubeProvider
 import app.kreate.android.utils.CrashHandler
 import app.kreate.android.utils.logging.RollingFileLoggingTree
+<<<<<<< HEAD
 import dagger.hilt.android.HiltAndroidApp
+=======
+import me.knighthat.innertube.Innertube
+>>>>>>> upstream/main
 import timber.log.Timber
 
 @HiltAndroidApp
@@ -29,6 +35,9 @@ class MainApplication : Application() {
 
         if( BuildConfig.DEBUG || (isRuntimeLogEnabled && Preferences.RUNTIME_LOG_SHARED.value) )
             Timber.plant( Timber.DebugTree() )
+
+        Innertube.setProvider( InnertubeProvider() )
+        ImageFactory.init( this )
     }
 
     override fun onTerminate() {
