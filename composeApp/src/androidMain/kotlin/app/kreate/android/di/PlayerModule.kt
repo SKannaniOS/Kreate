@@ -16,6 +16,10 @@ import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
+<<<<<<< HEAD
+=======
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+>>>>>>> upstream/main
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
@@ -30,8 +34,13 @@ import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.di.PlayerModule.upsertSongFormat
 import app.kreate.android.di.PlayerModule.upsertSongInfo
+<<<<<<< HEAD
 import app.kreate.android.service.KtorHttpDatasource
 import app.kreate.android.service.NetworkService
+=======
+import app.kreate.android.service.NetworkService
+import app.kreate.android.service.player.CustomExoPlayer
+>>>>>>> upstream/main
 import app.kreate.android.utils.CharUtils
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import com.grack.nanojson.JsonObject
@@ -65,6 +74,10 @@ import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.json.Json
 import me.knighthat.innertube.Endpoints
 import me.knighthat.innertube.Innertube
+<<<<<<< HEAD
+=======
+import me.knighthat.innertube.UserAgents
+>>>>>>> upstream/main
 import me.knighthat.innertube.response.PlayerResponse
 import me.knighthat.utils.Toaster
 import org.schabi.newpipe.extractor.localization.ContentCountry
@@ -98,7 +111,11 @@ object PlayerModule {
      * Store id of song just added to the database.
      * This is created to reduce load to Room
      */
+<<<<<<< HEAD
     @set:Synchronized
+=======
+    @Volatile
+>>>>>>> upstream/main
     private var justInserted: String = ""
 
     private val cachedStreamUrl = mutableMapOf<String, StreamCache>()
@@ -118,6 +135,10 @@ object PlayerModule {
             explicitNulls = false
         }
 
+<<<<<<< HEAD
+=======
+    //<editor-fold desc="Database handlers">
+>>>>>>> upstream/main
     /**
      * Reach out to [Endpoints.NEXT] endpoint for song's information.
      *
@@ -197,6 +218,10 @@ object PlayerModule {
             }
         }
     }
+<<<<<<< HEAD
+=======
+    //</editor-fold>
+>>>>>>> upstream/main
 
     //<editor-fold desc="Extractors">
     private fun extractFormat(
@@ -279,6 +304,10 @@ object PlayerModule {
         }
     //</editor-fold>
 
+<<<<<<< HEAD
+=======
+    //<editor-fold desc="Get response">
+>>>>>>> upstream/main
     private fun getPlayerResponseFromNewPipe(
         index: Int,
         songId: String,
@@ -379,7 +408,13 @@ object PlayerModule {
             "`streamUrl` is verified but `cache` is still null"
         }
     }
+<<<<<<< HEAD
 
+=======
+    //</editor-fold>
+
+    //<editor-fold desc="Resolvers">
+>>>>>>> upstream/main
     @ExperimentalSerializationApi
     @UnstableApi
     private fun DataSpec.process(
@@ -445,11 +480,21 @@ object PlayerModule {
         return@Resolver if( isLocal || isCached() ) {
             Timber.tag( LOG_TAG ).d( "$videoId exists in cache, proceeding to use from cache" )
             // No need to fetch online for already cached data
+<<<<<<< HEAD
             dataSpec.subrange( dataSpec.uriPositionOffset, C.LENGTH_UNSET.toLong() )
         } else
             dataSpec.process( videoId, Preferences.AUDIO_QUALITY.value, context.isConnectionMetered() )
     }
 
+=======
+            dataSpec.subrange( absoluteStart, C.LENGTH_UNSET.toLong() )
+        } else
+            dataSpec.process( videoId, Preferences.AUDIO_QUALITY.value, context.isConnectionMetered() )
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="Datasources">
+>>>>>>> upstream/main
     /**
      * Short-circuit function to quickly make a [DataSource.Factory] from
      * designated [cache]
@@ -462,7 +507,12 @@ object PlayerModule {
     @Named("ktorDataSource")
     @UnstableApi
     fun providesKtorUpstreamDataSourceFactory(): DataSource.Factory =
+<<<<<<< HEAD
         KtorHttpDatasource.Factory(NetworkService.client )
+=======
+        OkHttpDataSource.Factory( NetworkService.engine )
+                        .setUserAgent( UserAgents.CHROME_WINDOWS )
+>>>>>>> upstream/main
 
     @Provides
     @Named("downloadDataSource")
@@ -506,6 +556,10 @@ object PlayerModule {
                 ),
             resolver( context, cache, downloadCache )
         )
+<<<<<<< HEAD
+=======
+    //</editor-fold>
+>>>>>>> upstream/main
 
     @Provides
     @androidx.annotation.OptIn(UnstableApi::class)
@@ -572,6 +626,10 @@ object PlayerModule {
                         .setAudioAttributes( audioAttributes, handleAudioFocus )
                         .setUsePlatformDiagnostics( false )
                         .build()
+<<<<<<< HEAD
+=======
+                        .let( ::CustomExoPlayer )
+>>>>>>> upstream/main
     }
 
     private data class StreamCache(

@@ -26,6 +26,7 @@ object MyDownloadHelper {
     fun downloadOnLike(mediaItem: MediaItem, likeState: Boolean?) = instance.downloadOnLike( mediaItem, likeState )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     fun handleDownload(song: Song, removeIfDownloaded: Boolean) = instance.handleDownload( song, removeIfDownloaded )
 =======
     @SuppressLint("LongLogTag")
@@ -285,5 +286,8 @@ object MyDownloadHelper {
         else if( !isDownloaded )
             addDownload( context, mediaItem )
     }
+>>>>>>> upstream/main
+=======
+    fun handleDownload(song: Song, removeIfDownloaded: Boolean) = instance.handleDownload( song, removeIfDownloaded )
 >>>>>>> upstream/main
 }

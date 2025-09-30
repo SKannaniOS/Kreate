@@ -9,8 +9,12 @@ import app.kreate.android.service.innertube.InnertubeProvider
 import app.kreate.android.utils.CrashHandler
 import app.kreate.android.utils.logging.RollingFileLoggingTree
 <<<<<<< HEAD
+<<<<<<< HEAD
 import dagger.hilt.android.HiltAndroidApp
 =======
+=======
+import dagger.hilt.android.HiltAndroidApp
+>>>>>>> upstream/main
 import me.knighthat.innertube.Innertube
 >>>>>>> upstream/main
 import timber.log.Timber

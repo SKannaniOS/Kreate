@@ -21,11 +21,12 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.BassBoost
-import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.PresetReverb
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.MainThread
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -56,6 +57,7 @@ import androidx.media3.session.SessionToken
 import app.kreate.android.Preferences
 import app.kreate.android.R
 <<<<<<< HEAD
+<<<<<<< HEAD
 import app.kreate.android.coil3.ImageFactory
 <<<<<<< HEAD
 import app.kreate.android.service.DownloadHelper
@@ -66,9 +68,12 @@ import app.kreate.android.service.innertube.InnertubeProvider
 =======
 import app.kreate.android.service.createDataSourceFactory
 >>>>>>> upstream/main
+=======
+import app.kreate.android.service.Discord
+import app.kreate.android.service.DownloadHelper
+>>>>>>> upstream/main
 import app.kreate.android.service.newpipe.NewPipeDownloader
 import app.kreate.android.service.player.ExoPlayerListener
-import app.kreate.android.service.player.VolumeFader
 import app.kreate.android.service.player.VolumeObserver
 import app.kreate.android.utils.centerCropBitmap
 import app.kreate.android.utils.centerCropToMatchScreenSize
@@ -81,11 +86,17 @@ import it.fast4x.innertube.models.NavigationEndpoint
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MainActivity
 import it.fast4x.rimusic.appContext
+<<<<<<< HEAD
 import it.fast4x.rimusic.enums.AudioQualityFormat
 import it.fast4x.rimusic.enums.PresetsReverb
 import it.fast4x.rimusic.enums.WallpaperType
 import it.fast4x.rimusic.extensions.connectivity.AndroidConnectivityObserverLegacy
 import it.fast4x.rimusic.extensions.discord.updateDiscordPresence
+=======
+import it.fast4x.rimusic.enums.PresetsReverb
+import it.fast4x.rimusic.enums.WallpaperType
+import it.fast4x.rimusic.extensions.connectivity.AndroidConnectivityObserverLegacy
+>>>>>>> upstream/main
 import it.fast4x.rimusic.models.Event
 import it.fast4x.rimusic.models.Song
 import it.fast4x.rimusic.service.BitmapProvider
@@ -127,6 +138,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import me.knighthat.impl.DownloadHelperImpl
 import me.knighthat.innertube.model.InnertubeSong
 import me.knighthat.utils.Toaster
 import org.schabi.newpipe.extractor.NewPipe
@@ -153,6 +165,7 @@ val Song.isLocal get() = id.startsWith(LOCAL_KEY_PREFIX)
 class PlayerServiceModern:
     MediaLibraryService(),
     PlaybackStatsListener.Callback,
+<<<<<<< HEAD
     SharedPreferences.OnSharedPreferenceChangeListener
 {
 
@@ -160,28 +173,37 @@ class PlayerServiceModern:
     @Inject lateinit var downloadHelper: DownloadHelper
     @Inject @Named("downloadCache") lateinit var downloadCache: Cache
     @Inject lateinit var player: ExoPlayer
+=======
+    SharedPreferences.OnSharedPreferenceChangeListener,
+    Player.Listener
+{
+    @Inject
+    lateinit var player: ExoPlayer
+
+    @Inject
+    @Named("cache")
+    lateinit var cache: Cache
+    @Inject
+    lateinit var downloadHelper: DownloadHelper
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    private val discord: Discord = Discord(this)
+
+    @Inject
+    lateinit var volumeObserver: VolumeObserver
+>>>>>>> upstream/main
 
     private lateinit var listener: ExoPlayerListener
-    private lateinit var volumeFader: VolumeFader
-    private lateinit var volumeObserver: VolumeObserver
     private val coroutineScope = CoroutineScope(Dispatchers.IO) + Job()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var mediaSession: MediaLibrarySession
     private var mediaLibrarySessionCallback: MediaLibrarySessionCallback =
         MediaLibrarySessionCallback(this, Database, MyDownloadHelper)
     private lateinit var bitmapProvider: BitmapProvider
-    private var isPersistentQueueEnabled: Boolean = false
-    private var isclosebackgroundPlayerEnabled = false
-    private var audioManager: AudioManager? = null
-    private var audioDeviceCallback: AudioDeviceCallback? = null
     private lateinit var downloadListener: DownloadManager.Listener
 
-    var loudnessEnhancer: LoudnessEnhancer? = null
     private var binder = Binder()
-    private var bassBoost: BassBoost? = null
-    private var reverbPreset: PresetReverb? = null
 
-    lateinit var audioQualityFormat: AudioQualityFormat
     lateinit var sleepTimer: SleepTimer
     private var timerJob: TimerJob? = null
 
@@ -202,6 +224,7 @@ class PlayerServiceModern:
 
     private lateinit var notificationActionReceiver: NotificationActionReceiver
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
     private fun initCache(): Cache {
@@ -233,24 +256,24 @@ class PlayerServiceModern:
     }
 
 >>>>>>> upstream/main
+=======
+>>>>>>> upstream/main
     private fun onMediaItemTransition( mediaItem: MediaItem? ) {
-        updateBitmap()
         listener.updateMediaControl( this, player )
-        updateDownloadedState()
-        updateWidgets()
 
-        mediaItem?.also {
-            if( !isAtLeastAndroid6 || !Preferences.DISCORD_LOGIN.value ) return@also
+        if( mediaItem != null ) {
+            updateBitmap()
+            updateDownloadedState()
+            updateWidgets()
+
+            if( !Preferences.isLoggedInToDiscord() )
+                return
 
             val startTime = System.currentTimeMillis() - player.currentPosition
-            val duration = mediaItem.mediaMetadata.durationMs ?: 0
-            updateDiscordPresence(
-                this@PlayerServiceModern,
-                mediaItem = it,
-                timeStart = startTime,
-                timeEnd = startTime + duration
-            )
-        }
+            @SuppressLint("NewApi")     // [Preferences.isLoggedInToDiscord] already verified it
+            discord.updateMediaItem( mediaItem, startTime )
+        } else if( Preferences.isLoggedInToDiscord() )
+            discord.stop()
     }
 
 
@@ -260,7 +283,6 @@ class PlayerServiceModern:
 
         super.onCreate()
 
-        volumeObserver = VolumeObserver(this, ::onVolumeChange)
         volumeObserver.register()
 
         // Enable Android Auto if disabled, REQUIRE ENABLING DEV MODE IN ANDROID AUTO
@@ -300,10 +322,11 @@ class PlayerServiceModern:
         }
 
         val preferences = preferences
-        isPersistentQueueEnabled = Preferences.ENABLE_PERSISTENT_QUEUE.value
+        MyDownloadHelper.instance = this.downloadHelper
 
-        audioQualityFormat = Preferences.AUDIO_QUALITY.value
+        sleepTimer = SleepTimer(coroutineScope, player).also( player::addListener )
 
+<<<<<<< HEAD
         MyDownloadHelper.instance = this.downloadHelper
 
         sleepTimer = SleepTimer(coroutineScope, player).also( player::addListener )
@@ -311,6 +334,10 @@ class PlayerServiceModern:
         PlaybackStatsListener(false, this@PlayerServiceModern)
             .also( player::addAnalyticsListener )
         volumeFader = VolumeFader(player)
+=======
+        PlaybackStatsListener(false, this@PlayerServiceModern)
+            .also( player::addAnalyticsListener )
+>>>>>>> upstream/main
 
         preferences.registerOnSharedPreferenceChangeListener(this)
 
@@ -372,6 +399,7 @@ class PlayerServiceModern:
 
         player.skipSilenceEnabled = Preferences.AUDIO_SKIP_SILENCE.value
         player.addListener( listener )
+        player.addListener( this )
         player.addAnalyticsListener(PlaybackStatsListener(false, this@PlayerServiceModern))
 
         player.repeatMode = Preferences.QUEUE_LOOP_TYPE.value.type
@@ -432,23 +460,6 @@ class PlayerServiceModern:
             println("PlayerServiceModern onCreate currentSongIsDownloaded ${currentSongStateDownload.value}")
 
             withContext(Dispatchers.Main) {
-                player.currentMediaItem?.also {
-                    if( !isAtLeastAndroid6 || !Preferences.DISCORD_LOGIN.value ) return@also
-
-                    updateDiscordPresence(
-                        this@PlayerServiceModern,
-                        mediaItem = it,
-                        timeStart = if (player.isPlaying)
-                            System.currentTimeMillis() - player.currentPosition
-                        else
-                            0L,
-                        timeEnd = if (player.isPlaying)
-                            (System.currentTimeMillis() - player.currentPosition) + player.duration
-                        else
-                            0L
-                    )
-                }
-
                 updateWidgets()
             }
         }
@@ -463,7 +474,7 @@ class PlayerServiceModern:
 
         /* Queue is saved in events without scheduling it (remove this in future)*/
         // Load persistent queue when start activity and save periodically in background
-        if (isPersistentQueueEnabled) {
+        if ( Preferences.ENABLE_PERSISTENT_QUEUE.value ) {
             maybeResumePlaybackOnStart()
 
             val scheduler = Executors.newScheduledThreadPool(1)
@@ -474,10 +485,24 @@ class PlayerServiceModern:
 
         }
 
-
+        if( isAtLeastAndroid6 )
+            discord.register()
     }
 
     override fun onBind(intent: Intent?) = super.onBind(intent) ?: binder
+
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        if( !Preferences.isLoggedInToDiscord() )
+            return
+
+        val mediaItem = player.currentMediaItem ?: return
+        val startTime = System.currentTimeMillis() - player.currentPosition
+        @SuppressLint("NewApi")     // [Preferences.isLoggedInToDiscord] already verified it
+        if( isPlaying )
+            discord.updateMediaItem( mediaItem, startTime )
+        else
+            discord.pause( mediaItem, startTime )
+    }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession =
         mediaSession
@@ -517,8 +542,7 @@ class PlayerServiceModern:
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        isclosebackgroundPlayerEnabled = Preferences.CLOSE_BACKGROUND_JOB_IN_TASK_MANAGER.value
-        if (isclosebackgroundPlayerEnabled) {
+        if ( Preferences.CLOSE_BACKGROUND_JOB_IN_TASK_MANAGER.value ) {
             broadCastPendingIntent<NotificationDismissReceiver>().send()
             this.stopService(this.intent<MyDownloadService>())
             this.stopService(this.intent<PlayerServiceModern>())
@@ -536,7 +560,6 @@ class PlayerServiceModern:
             stopService(intent<MyDownloadService>())
             stopService(intent<PlayerServiceModern>())
 
-            volumeFader.release()
             player.removeListener( listener )
             player.stop()
             player.release()
@@ -553,7 +576,7 @@ class PlayerServiceModern:
             //downloadCache.release()
             MyDownloadHelper.instance.downloadManager.removeListener(downloadListener)
 
-            loudnessEnhancer?.release()
+            listener.loudnessEnhancer?.release()
 
             timerJob?.cancel()
             timerJob = null
@@ -563,6 +586,9 @@ class PlayerServiceModern:
             notificationManager = null
 
             coroutineScope.cancel()
+
+            if( isAtLeastAndroid6 )
+                discord.release()
 
             preferences.unregisterOnSharedPreferenceChangeListener(this)
         }.onFailure {
@@ -574,9 +600,6 @@ class PlayerServiceModern:
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
         when (key) {
-            Preferences.ENABLE_PERSISTENT_QUEUE.key ->
-                isPersistentQueueEnabled = sharedPreferences.getBoolean( key, Preferences.ENABLE_PERSISTENT_QUEUE.defaultValue )
-
             Preferences.AUDIO_VOLUME_NORMALIZATION.key,
             Preferences.AUDIO_VOLUME_NORMALIZATION_TARGET.key -> listener.maybeNormalizeVolume()
 
@@ -595,19 +618,7 @@ class PlayerServiceModern:
         }
     }
 
-    private var pausedByZeroVolume = false
-
-    private fun onVolumeChange( volume: Int ) {
-        if( !Preferences.PAUSE_WHEN_VOLUME_SET_TO_ZERO.value ) return
-
-        if ( player.isPlaying && volume < 1 ) {
-            binder.gracefulPause()
-            pausedByZeroVolume = true
-        } else if ( pausedByZeroVolume && volume >= 1 ) {
-            binder.gracefulPlay()
-            pausedByZeroVolume = false
-        }
-    }
+    private var bassBoost: BassBoost? = null
 
     private fun maybeBassBoost() {
         if ( !Preferences.AUDIO_BASS_BOOSTED.value ) {
@@ -633,6 +644,8 @@ class PlayerServiceModern:
         }
     }
 
+    private var reverbPreset: PresetReverb? = null
+
     private fun maybeReverb() {
         val presetType by Preferences.AUDIO_REVERB_PRESET
         println("PlayerServiceModern maybeReverb presetType $presetType")
@@ -656,38 +669,42 @@ class PlayerServiceModern:
         }
     }
 
-    @SuppressLint("NewApi")
+    private var audioManager: AudioManager? = null
+    private var audioDeviceCallback: AudioDeviceCallback? = null
+
     private fun maybeResumePlaybackWhenDeviceConnected() {
-        if (!isAtLeastAndroid6) return
+        if ( !isAtLeastAndroid6 ) return
 
         if ( Preferences.RESUME_PLAYBACK_WHEN_CONNECT_TO_AUDIO_DEVICE.value ) {
-            if (audioManager == null) {
-                audioManager = getSystemService(AUDIO_SERVICE) as AudioManager?
-            }
+            if (audioManager == null)
+                audioManager = getSystemService( AUDIO_SERVICE ) as? AudioManager
+
 
             audioDeviceCallback = object : AudioDeviceCallback() {
                 private fun canPlayMusic(audioDeviceInfo: AudioDeviceInfo): Boolean {
-                    if (!audioDeviceInfo.isSink) return false
+                    if ( !audioDeviceInfo.isSink ) return false
 
-                    return audioDeviceInfo.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                            audioDeviceInfo.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                            audioDeviceInfo.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                            audioDeviceInfo.type == AudioDeviceInfo.TYPE_USB_HEADSET
-                }
-
-                override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
-                    if (!player.isPlaying && addedDevices.any(::canPlayMusic)) {
-                        player.play()
+                    return when( audioDeviceInfo.type ) {
+                        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                        AudioDeviceInfo.TYPE_USB_HEADSET        -> true
+                        else                                    -> false
                     }
                 }
 
-                override fun onAudioDevicesRemoved(removedDevices: Array<AudioDeviceInfo>) = Unit
+                override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
+                    if( player.isPlaying ) return
+
+                    if( addedDevices.any( ::canPlayMusic ) )
+                        player.play()
+                }
             }
 
-            audioManager?.registerAudioDeviceCallback(audioDeviceCallback, handler)
+            audioManager?.registerAudioDeviceCallback( audioDeviceCallback, handler )
 
         } else {
-            audioManager?.unregisterAudioDeviceCallback(audioDeviceCallback)
+            audioManager?.unregisterAudioDeviceCallback( audioDeviceCallback )
             audioDeviceCallback = null
         }
     }
@@ -785,15 +802,16 @@ class PlayerServiceModern:
     }
 
     private fun maybeResumePlaybackOnStart() {
-        if( isPersistentQueueEnabled && Preferences.RESUME_PLAYBACK_ON_STARTUP.value )
-            binder.gracefulPlay()
+        if( Preferences.ENABLE_PERSISTENT_QUEUE.value
+            && Preferences.RESUME_PLAYBACK_ON_STARTUP.value
+        ) binder.gracefulPlay()
     }
 
     @ExperimentalCoroutinesApi
     @FlowPreview
     @UnstableApi
     private fun maybeRestorePlayerQueue() {
-        if (!isPersistentQueueEnabled) return
+        if ( !Preferences.ENABLE_PERSISTENT_QUEUE.value ) return
 
         Database.asyncQuery {
             val queuedSong = runBlocking {
@@ -894,7 +912,7 @@ class PlayerServiceModern:
             get() = this@PlayerServiceModern.cache
 
         val downloadCache: Cache
-            get() = this@PlayerServiceModern.downloadCache
+            get() = (this@PlayerServiceModern.downloadHelper as DownloadHelperImpl).downloadCache
 
         val sleepTimerMillisLeft: StateFlow<Long?>?
             get() = timerJob?.millisLeft
@@ -1025,54 +1043,13 @@ class PlayerServiceModern:
          * Pause with fade out effect
          */
         @MainThread
-        fun gracefulPause() = with( player ) {
-            if( !isPlaying ) return
-
-            val duration = Preferences.AUDIO_FADE_DURATION.value.asMillis
-            if( duration == 0L ) {
-                pause()
-                return
-            }
-
-            val originalVolume = volume
-            volumeFader.startFade(
-                start = volume,
-                end = 0f,
-                durationInMillis = duration,
-                doOnEnd = {
-                    pause()
-                    volume = originalVolume
-                }
-            )
-        }
+        fun gracefulPause() = player.pause()
 
         /**
          * Start playing with fade in effect
          */
         @MainThread
-        fun gracefulPlay() = with( player ) {
-            if( isPlaying ) return
-
-            val duration = Preferences.AUDIO_FADE_DURATION.value.asMillis
-            if( duration == 0L ) {
-                if( playbackState == Player.STATE_IDLE )
-                    prepare()
-                play()
-                return
-            }
-
-            volumeFader.startFade(
-                start = 0f,
-                end = volume,
-                durationInMillis = duration,
-                doOnStart = {
-                    volume = 0f
-                    if ( playbackState == Player.STATE_IDLE )
-                        prepare()
-                    play()
-                }
-            )
-        }
+        fun gracefulPlay() = player.play()
 
         /**
          * This method should ONLY be called when the application (sc. activity) is in the foreground!

@@ -7,6 +7,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.serialization.kotlinx.protobuf.protobuf
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +44,22 @@ object NetworkService {
             InetSocketAddress(Preferences.PROXY_HOST.value, Preferences.PROXY_PORT.value)
         )
 
+    val engine by lazy {
+        OkHttpClient.Builder()
+            .apply {
+                if( Preferences.IS_PROXY_ENABLED.value )
+                    runBlocking( Dispatchers.IO ) {
+                        proxy.takeIf( ::verifyProxy ) ?: Proxy.NO_PROXY
+                    }.also( ::proxy )
+
+                if( BuildConfig.DEBUG )
+                    addInterceptor(
+                        HttpLoggingInterceptor().setLevel( HttpLoggingInterceptor.Level.BODY )
+                    )
+            }
+            .build()
+    }
+
     @OptIn(ExperimentalSerializationApi::class)
     val client by lazy {
         HttpClient(OkHttp) {
@@ -57,16 +75,12 @@ object NetworkService {
                 deflate( 0.9F )
             }
 
-            engine {
-                if( Preferences.IS_PROXY_ENABLED.value )
-                    this.proxy = runBlocking( Dispatchers.IO ) {
-                        NetworkService.proxy.takeIf( ::verifyProxy ) ?: Proxy.NO_PROXY
-                    }
+            install(WebSockets ) {
+                contentConverter = KotlinxWebsocketSerializationConverter(JSON)
+            }
 
-                if( BuildConfig.DEBUG )
-                    addInterceptor(
-                        HttpLoggingInterceptor().setLevel( HttpLoggingInterceptor.Level.BODY )
-                    )
+            engine {
+                preconfigured = engine
             }
         }
     }
