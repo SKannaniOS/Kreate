@@ -835,10 +835,14 @@
 >>>>>>> upstream/main
 =======
     <string name="setting_entry_song_empty_duration_placeholder">Empty duration placeholder</string>
+<<<<<<< HEAD
     <string name="setting_description_song_empty_duration_placeholder">Display \"--:--\" when duration is unknown</string>
 <<<<<<< HEAD
 >>>>>>> upstream/main
 =======
+=======
+    <string name="setting_description_song_empty_duration_placeholder">\"--:--\" anzeigen wenn die Dauer nicht bekannt ist</string>
+>>>>>>> upstream/main
     <string name="shape_rectangle">Rectangle</string>
     <string name="shape_circle">Circle</string>
     <string name="word_description">Description</string>
