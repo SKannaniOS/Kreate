@@ -1,7 +1,9 @@
 package app.kreate.android.di
 
 import android.content.ContentResolver
+import android.content.ContentUris
 import android.content.Context
+import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.util.fastFilter
 import androidx.core.net.toUri
@@ -11,6 +13,7 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSink
@@ -60,6 +63,7 @@ import it.fast4x.rimusic.models.Format
 import it.fast4x.rimusic.service.LoginRequiredException
 import it.fast4x.rimusic.service.UnknownException
 import it.fast4x.rimusic.service.UnplayableException
+import it.fast4x.rimusic.service.modern.LOCAL_KEY_PREFIX
 import it.fast4x.rimusic.utils.isAtLeastAndroid10
 import it.fast4x.rimusic.utils.isConnectionMetered
 import it.fast4x.rimusic.utils.isNetworkAvailable
@@ -96,6 +100,8 @@ import me.knighthat.innertube.request.body.Context as InnertubeContext
 
 @Module
 @InstallIn(SingletonComponent::class)
+@androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(ExperimentalSerializationApi::class)
 object PlayerModule {
 
     private const val LOG_TAG = "dataspec"
@@ -294,7 +300,6 @@ object PlayerModule {
                           Timber.tag( LOG_TAG ).d( "`streamUrl` returns code $it" )
                       } == 200
 
-    @UnstableApi
     private fun checkPlayabilityStatus( playabilityStatus: PlayerResponse.PlayabilityStatus ) =
         when( playabilityStatus.status ) {
             "OK"                -> { Timber.tag( LOG_TAG ).d( "`playabilityStatus` is OK" ) }
@@ -333,8 +338,6 @@ object PlayerModule {
         return parsePlayerResponseViaReflection( jsonResponse )
     }
 
-    @ExperimentalSerializationApi
-    @UnstableApi
     private suspend fun getPlayerResponse(
         songId: String,
         audioQualityFormat: AudioQualityFormat,
@@ -414,14 +417,18 @@ object PlayerModule {
     //</editor-fold>
 
     //<editor-fold desc="Resolvers">
+<<<<<<< HEAD
 >>>>>>> upstream/main
     @ExperimentalSerializationApi
     @UnstableApi
+=======
+>>>>>>> upstream/main
     private fun DataSpec.process(
         videoId: String,
-        audioQualityFormat: AudioQualityFormat,
         connectionMetered: Boolean
     ): DataSpec = runBlocking( Dispatchers.IO ) {
+        val audioQualityFormat by Preferences.AUDIO_QUALITY
+
         Timber.tag( LOG_TAG ).v( "processing $videoId at quality $audioQualityFormat with connection metered: $connectionMetered" )
 
         val cache: StreamCache
@@ -436,7 +443,7 @@ object PlayerModule {
 
                 cachedStreamUrl.remove( videoId )
 
-                return@runBlocking process( videoId, audioQualityFormat, connectionMetered )
+                return@runBlocking process( videoId, connectionMetered )
             }
         } else {
             Timber.tag( LOG_TAG ).d( "url for $videoId isn't stored! Fetching new url" )
@@ -445,41 +452,58 @@ object PlayerModule {
             cache = cachedStreamUrl[videoId]!!
         }
 
+        val absolutePosition = uriPositionOffset + position
         YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated( videoId, cache.playableUrl )
                                       .toUri()
                                       .buildUpon()
-                                      .appendQueryParameter( "range", "$uriPositionOffset-${cache.contentLength}" )
+                                      .appendQueryParameter( "range", "$absolutePosition-${cache.contentLength}" )
                                       .appendQueryParameter( "cpn", cache.cpn )
                                       .build()
                                       .let( ::withUri )
-                                      .subrange( uriPositionOffset, C.LENGTH_UNSET.toLong() )
     }
 
     /**
      * Used to determined whether the song can be played from cached,
      * or a call to online service must be made to get needed data.
      */
-    @ExperimentalSerializationApi
-    @UnstableApi
     private fun resolver(
         context: Context,
         vararg cashes: Cache
     ) = ResolvingDataSource.Resolver { dataSpec ->
-        val absoluteStart = dataSpec.uriPositionOffset + dataSpec.position
         val videoId = dataSpec.uri.toString().substringAfter( "watch?v=" )
 
         // Delay this block until called. Song can be local too
+        val cacheLength = dataSpec.length.takeIf { it != -1L } ?: CHUNK_LENGTH
         fun isCached() = cashes.any {
-            it.isCached( videoId, absoluteStart, CHUNK_LENGTH )
+            it.isCached( videoId, dataSpec.position, cacheLength )
         }
-        val isLocal = dataSpec.uri.scheme == ContentResolver.SCHEME_CONTENT || dataSpec.uri.scheme == ContentResolver.SCHEME_FILE
+        // When player resumes from persistent queue, the videoId isn't path to the file,
+        // but the following format: local:id. Therefore, checking for prefix is needed.
+        val isLocal = videoId.startsWith(LOCAL_KEY_PREFIX, true )
+                || dataSpec.uri.scheme == ContentResolver.SCHEME_CONTENT
+                || dataSpec.uri.scheme == ContentResolver.SCHEME_FILE
 
         if( !isLocal )
             upsertSongInfo( context, videoId )
 
-        return@Resolver if( isLocal || isCached() ) {
+        return@Resolver if( isLocal ) {
+            Timber.tag( LOG_TAG ).d( "$videoId is local song" )
+
+            if( videoId.startsWith(LOCAL_KEY_PREFIX, true ) )
+                // This will take id from videoId and return path to that media file
+                // For example: `local:id` becomes `content:/path/to/media/id`
+                ContentUris.withAppendedId(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    videoId.substringAfter(LOCAL_KEY_PREFIX).toLong()
+                ).also {
+                    Timber.tag( LOG_TAG ).v( "Resolved path: $it" )
+                }.let( dataSpec::withUri )
+            else
+                dataSpec
+        } else if( isCached() ) {
             Timber.tag( LOG_TAG ).d( "$videoId exists in cache, proceeding to use from cache" )
             // No need to fetch online for already cached data
+<<<<<<< HEAD
 <<<<<<< HEAD
             dataSpec.subrange( dataSpec.uriPositionOffset, C.LENGTH_UNSET.toLong() )
         } else
@@ -488,8 +512,11 @@ object PlayerModule {
 
 =======
             dataSpec.subrange( absoluteStart, C.LENGTH_UNSET.toLong() )
+=======
+            dataSpec
+>>>>>>> upstream/main
         } else
-            dataSpec.process( videoId, Preferences.AUDIO_QUALITY.value, context.isConnectionMetered() )
+            dataSpec.process( videoId, context.isConnectionMetered() )
     }
     //</editor-fold>
 
@@ -499,11 +526,11 @@ object PlayerModule {
      * Short-circuit function to quickly make a [DataSource.Factory] from
      * designated [cache]
      */
-    @UnstableApi
-    fun dataSourceFactoryFrom( cache: Cache ): CacheDataSource.Factory =
+    private fun dataSourceFactoryFrom( cache: Cache ): CacheDataSource.Factory =
         CacheDataSource.Factory().setCache( cache )
 
     @Provides
+<<<<<<< HEAD
     @Named("ktorDataSource")
     @UnstableApi
     fun providesKtorUpstreamDataSourceFactory(): DataSource.Factory =
@@ -513,32 +540,45 @@ object PlayerModule {
         OkHttpDataSource.Factory( NetworkService.engine )
                         .setUserAgent( UserAgents.CHROME_WINDOWS )
 >>>>>>> upstream/main
+=======
+    @Named("defaultDatasource")
+    @Singleton
+    fun providesOkHttpDataSourceFactory(
+        @ApplicationContext context: Context
+    ): DataSource.Factory =
+        // [DefaultDataSource.Factory] with [context] is required to read
+        // data from local files.
+        // Normal HTTP requests are handled by [OkHttpDataSource.Factory]
+        DefaultDataSource.Factory(
+            context,
+            OkHttpDataSource.Factory( NetworkService.engine )
+                .setUserAgent( UserAgents.CHROME_WINDOWS )
+        )
+>>>>>>> upstream/main
 
     @Provides
     @Named("downloadDataSource")
-    @androidx.annotation.OptIn(UnstableApi::class)
-    @OptIn(ExperimentalSerializationApi::class)
+    @Singleton
     fun providesDownloadDataSource(
         @ApplicationContext context: Context,
         @Named("downloadCache") downloadCache: Cache,
-        @Named("ktorDataSource") ktorDataSource: DataSource.Factory
+        @Named("defaultDatasource") defaultDatasource: DataSource.Factory
     ): DataSource.Factory =
         ResolvingDataSource.Factory(
             dataSourceFactoryFrom( downloadCache )
-                .setUpstreamDataSourceFactory( ktorDataSource )
+                .setUpstreamDataSourceFactory( defaultDatasource )
                 .setCacheWriteDataSinkFactory( null ),
             resolver( context, downloadCache )
         )
 
     @Provides
     @Named("playerDataSource")
-    @androidx.annotation.OptIn(UnstableApi::class)
-    @OptIn(ExperimentalSerializationApi::class)
+    @Singleton
     fun providesPlayerDataSource(
         @ApplicationContext context: Context,
         @Named("cache") cache: Cache,
         @Named("downloadCache") downloadCache: Cache,
-        @Named("ktorDataSource") ktorDataSource: DataSource.Factory
+        @Named("defaultDatasource") defaultDatasource: DataSource.Factory
     ): DataSource.Factory =
         ResolvingDataSource.Factory(
             dataSourceFactoryFrom( downloadCache )
@@ -546,7 +586,7 @@ object PlayerModule {
                 .setFlags( FLAG_IGNORE_CACHE_ON_ERROR )
                 .setUpstreamDataSourceFactory(
                     dataSourceFactoryFrom( cache )
-                        .setUpstreamDataSourceFactory( ktorDataSource )
+                        .setUpstreamDataSourceFactory( defaultDatasource )
                         .setCacheWriteDataSinkFactory(
                             CacheDataSink.Factory()
                                          .setCache( cache )
@@ -562,8 +602,6 @@ object PlayerModule {
 >>>>>>> upstream/main
 
     @Provides
-    @androidx.annotation.OptIn(UnstableApi::class)
-    @OptIn(ExperimentalSerializationApi::class)
     @Singleton
     fun providesPlayer(
         @ApplicationContext context: Context,
