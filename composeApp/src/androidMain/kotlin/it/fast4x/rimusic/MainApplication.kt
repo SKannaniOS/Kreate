@@ -1,6 +1,7 @@
 package it.fast4x.rimusic
 
 import android.app.Application
+import android.content.SharedPreferences
 import androidx.compose.runtime.getValue
 import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
@@ -18,13 +19,15 @@ import dagger.hilt.android.HiltAndroidApp
 import me.knighthat.innertube.Innertube
 >>>>>>> upstream/main
 import timber.log.Timber
+import javax.inject.Inject
 
 @HiltAndroidApp
 class MainApplication : Application() {
 
-    override fun onCreate() {
-        Preferences.load( this )
+    @Inject
+    lateinit var preferences: SharedPreferences
 
+    override fun onCreate() {
         super.onCreate()
         //DatabaseInitializer()
         Dependencies.init(this)
@@ -35,7 +38,7 @@ class MainApplication : Application() {
         val fileCount by Preferences.RUNTIME_LOG_FILE_COUNT
         val maxSizePerFile by Preferences.RUNTIME_LOG_MAX_SIZE_PER_FILE
         if( isRuntimeLogEnabled && fileCount > 0 && maxSizePerFile > 0 )
-            Timber.plant( RollingFileLoggingTree(cacheDir, fileCount, maxSizePerFile) )
+            Timber.plant( RollingFileLoggingTree(this, fileCount, maxSizePerFile) )
 
         if( BuildConfig.DEBUG || (isRuntimeLogEnabled && Preferences.RUNTIME_LOG_SHARED.value) )
             Timber.plant( Timber.DebugTree() )
