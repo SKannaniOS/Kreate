@@ -45,6 +45,7 @@ import app.kreate.android.service.NetworkService
 import app.kreate.android.service.player.CustomExoPlayer
 >>>>>>> upstream/main
 import app.kreate.android.utils.CharUtils
+import app.kreate.android.utils.ConnectivityUtils
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import com.grack.nanojson.JsonObject
 import com.grack.nanojson.JsonWriter
@@ -57,10 +58,12 @@ import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.head
 import io.ktor.http.URLBuilder
 import io.ktor.http.parseQueryString
+import io.ktor.util.collections.ConcurrentMap
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.enums.AudioQualityFormat
 import it.fast4x.rimusic.models.Format
 import it.fast4x.rimusic.service.LoginRequiredException
+import it.fast4x.rimusic.service.NoInternetException
 import it.fast4x.rimusic.service.UnknownException
 import it.fast4x.rimusic.service.UnplayableException
 import it.fast4x.rimusic.service.modern.LOCAL_KEY_PREFIX
@@ -90,6 +93,8 @@ import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerMana
 import org.schabi.newpipe.extractor.services.youtube.YoutubeStreamHelper
 import timber.log.Timber
 import java.io.IOException
+import java.net.UnknownHostException
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Named
 import javax.inject.Singleton
 import javax.security.auth.login.LoginException
@@ -118,6 +123,7 @@ object PlayerModule {
      * This is created to reduce load to Room
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     @set:Synchronized
 =======
     @Volatile
@@ -125,6 +131,10 @@ object PlayerModule {
     private var justInserted: String = ""
 
     private val cachedStreamUrl = mutableMapOf<String, StreamCache>()
+=======
+    private val justInserted = AtomicReference("")
+    private val cachedStreamUrl = ConcurrentMap<String, StreamCache>()
+>>>>>>> upstream/main
     private val CONTEXTS = arrayOf(
         InnertubeContext.WEB_REMIX_DEFAULT,
         InnertubeContext.ANDROID_VR_DEFAULT,
@@ -166,7 +176,8 @@ object PlayerModule {
      */
     private fun upsertSongInfo( context: Context, videoId: String ) {       // Use this to prevent suspension of thread while waiting for response from YT
         // Skip adding if it's just added in previous call
-        if( videoId == justInserted || !isNetworkAvailable( context ) ) return
+        if( videoId == justInserted.get() || !isNetworkAvailable( context ) )
+            return
 
         Timber.tag( LOG_TAG ).v( "fetching and upserting $videoId's information to the database" )
 
@@ -195,7 +206,7 @@ object PlayerModule {
      */
     private fun upsertSongFormat( videoId: String, format: PlayerResponse.StreamingData.Format ) {
         // Skip adding if it's just added in previous call
-        if( videoId == justInserted ) return
+        if( videoId == justInserted.get() ) return
 
         Timber.tag( LOG_TAG ).v( "upserting format ${format.itag} of song $videoId to the database" )
 
@@ -220,7 +231,7 @@ object PlayerModule {
                 Timber.tag( LOG_TAG ).d( "$videoId is successfully upserted to the database" )
 
                 // Format must be added successfully before setting variable
-                justInserted = videoId
+                justInserted.set( videoId )
             }
         }
     }
@@ -394,6 +405,12 @@ object PlayerModule {
                     is LoginException,
                     is NullPointerException,            // When a component of cipherSignature wasn't found
                     is CancellationException -> e.message?.also { Timber.tag( LOG_TAG ).i( it ) }
+
+                    is UnknownHostException -> {
+                        // Make sure it's not a temporary network fluctuation
+                        if( !ConnectivityUtils.isAvailable.value )
+                            throw NoInternetException(e)
+                    }
 
                     else -> Timber.tag( LOG_TAG ).e( e, "getPlayerResponse returns error" )
                 }
@@ -669,6 +686,14 @@ object PlayerModule {
                         .let( ::CustomExoPlayer )
 >>>>>>> upstream/main
     }
+
+    /**
+     * Remove cached url of [songId].
+     *
+     * @return `true` if song's url was cached, and is deleted, `false` otherwise.
+     */
+    fun clearCachedStreamUrlOf( songId: String ): Boolean =
+        cachedStreamUrl.remove( songId ) != null
 
     private data class StreamCache(
         val cpn: String,
