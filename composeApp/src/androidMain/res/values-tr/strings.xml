@@ -856,11 +856,19 @@
     <string name="word_icon">Simge</string>
     <string name="setting_entry_song_empty_duration_placeholder">Boş süre yer tutucusu</string>
     <string name="setting_description_song_empty_duration_placeholder">Süre bilinmediğinde \"--:--\" göster</string>
+<<<<<<< HEAD
 >>>>>>> upstream/main
     <string name="shape_rectangle">Rectangle</string>
     <string name="shape_circle">Circle</string>
     <string name="word_description">Description</string>
     <string name="word_information">Information</string>
     <string name="description_view_song_info">View song\'s details</string>
+>>>>>>> upstream/main
+=======
+    <string name="shape_rectangle">Dikdörtgen</string>
+    <string name="shape_circle">Daire</string>
+    <string name="word_description">Açıklama</string>
+    <string name="word_information">Bilgi</string>
+    <string name="description_view_song_info">Şarkının ayrıntılarına bak</string>
 >>>>>>> upstream/main
 </resources>
