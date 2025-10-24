@@ -849,5 +849,9 @@ CC-BY-SA 3.0</string>
 >>>>>>> upstream/main
 =======
     <string name="error_access_cache_failed">Failed to retrieve data from cache storage</string>
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+    <string name="error_failed_to_decipher_signature">Failed to decipher signature</string>
 >>>>>>> upstream/main
 </resources>

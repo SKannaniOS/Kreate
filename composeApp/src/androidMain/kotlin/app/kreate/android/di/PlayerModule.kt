@@ -59,12 +59,14 @@ import io.ktor.client.request.head
 import io.ktor.http.URLBuilder
 import io.ktor.http.parseQueryString
 import io.ktor.util.collections.ConcurrentMap
+import io.ktor.util.network.UnresolvedAddressException
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.enums.AudioQualityFormat
 import it.fast4x.rimusic.models.Format
 import it.fast4x.rimusic.service.LoginRequiredException
+import it.fast4x.rimusic.service.MissingDecipherKeyException
 import it.fast4x.rimusic.service.NoInternetException
-import it.fast4x.rimusic.service.UnknownException
+import it.fast4x.rimusic.service.PlayableFormatNotFoundException
 import it.fast4x.rimusic.service.UnplayableException
 import it.fast4x.rimusic.service.modern.LOCAL_KEY_PREFIX
 import it.fast4x.rimusic.utils.isAtLeastAndroid10
@@ -97,8 +99,6 @@ import java.net.UnknownHostException
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Named
 import javax.inject.Singleton
-import javax.security.auth.login.LoginException
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 import me.knighthat.innertube.request.body.Context as InnertubeContext
 
@@ -241,6 +241,7 @@ object PlayerModule {
 >>>>>>> upstream/main
 
     //<editor-fold desc="Extractors">
+    @Throws(PlayableFormatNotFoundException::class)
     private fun extractFormat(
         streamingData: PlayerResponse.StreamingData?,
         audioQualityFormat: AudioQualityFormat,
@@ -255,7 +256,8 @@ object PlayerModule {
                          }
                          ?.sortedBy(PlayerResponse.StreamingData.Format::bitrate )
                          .orEmpty()
-        check( sortedAudioFormats.isNotEmpty() )
+        if( sortedAudioFormats.isEmpty() )
+            throw PlayableFormatNotFoundException()
 
         return when( audioQualityFormat ) {
             AudioQualityFormat.High -> sortedAudioFormats.last()
@@ -271,17 +273,19 @@ object PlayerModule {
         }
     }
 
+    @Throws(MissingDecipherKeyException::class)
     private fun extractStreamUrl( videoId: String, format: PlayerResponse.StreamingData.Format ): String =
         format.signatureCipher?.let { signatureCipher ->
             Timber.tag( LOG_TAG ).v( "deobfuscating signature $signatureCipher" )
 
             val (s, sp, url) = with( parseQueryString( signatureCipher ) ) {
+                val signature = this["s"] ?: throw MissingDecipherKeyException("s")
+                val signatureParam = this["sp"] ?: throw MissingDecipherKeyException("sp")
+                val signatureUrl = this["url"] ?: throw MissingDecipherKeyException("url")
                 Triple(
-                    requireNotNull( this["s"] ) { "missing signature cipher" },
-                    requireNotNull( this["sp"] ) { "missing signature parameter" },
-                    requireNotNull(
-                        this["url"]?.let( ::URLBuilder )
-                    ) { "missing url from signatureCipher" }
+                    signature,
+                    signatureParam,
+                    URLBuilder(signatureUrl)
                 )
             }
             url.parameters[sp] = YoutubeJavaScriptPlayerManager.deobfuscateSignature( videoId, s )
@@ -313,10 +317,9 @@ object PlayerModule {
 
     private fun checkPlayabilityStatus( playabilityStatus: PlayerResponse.PlayabilityStatus ) =
         when( playabilityStatus.status ) {
-            "OK"                -> { Timber.tag( LOG_TAG ).d( "`playabilityStatus` is OK" ) }
+            "OK"                -> Timber.tag( LOG_TAG ).d( "`playabilityStatus` is OK" )
             "LOGIN_REQUIRED"    -> throw LoginRequiredException(playabilityStatus.reason)
-            "UNPLAYABLE"        -> throw UnplayableException(playabilityStatus.reason)
-            else                -> throw UnknownException(playabilityStatus.reason)
+            else                -> throw UnplayableException(playabilityStatus.reason)
         }
     //</editor-fold>
 
@@ -395,24 +398,22 @@ object PlayerModule {
                 }
             } catch ( e: Exception ) {
                 when( e ) {
-                    // Only show this exception because this needs update
-                    // Other errors might be because of unsuccessful stream extraction
-                    is MissingFieldException -> e.message?.also( Toaster::e )
-
-                    // Must be placed last because most exceptions above are lumped
-                    // into this exception in the end. And the message is vague
-                    is UnplayableException,
-                    is LoginException,
-                    is NullPointerException,            // When a component of cipherSignature wasn't found
-                    is CancellationException -> e.message?.also { Timber.tag( LOG_TAG ).i( it ) }
-
-                    is UnknownHostException -> {
+                    is UnknownHostException,
+                    is UnresolvedAddressException -> {
                         // Make sure it's not a temporary network fluctuation
                         if( !ConnectivityUtils.isAvailable.value )
                             throw NoInternetException(e)
                     }
 
-                    else -> Timber.tag( LOG_TAG ).e( e, "getPlayerResponse returns error" )
+                    else -> {
+                        // Only show this exception because this needs update
+                        // Other errors might be because of unsuccessful stream extraction
+                        if( e is MissingFieldException )
+                            e.message?.also( Toaster::e )
+
+                        Timber.tag( LOG_TAG )
+                              .e( e, "${CONTEXTS[index].client.clientName} returns error" )
+                    }
                 }
 
                 lastException = e
