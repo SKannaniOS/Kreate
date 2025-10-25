@@ -2,14 +2,33 @@ package app.kreate.android.service.player
 
 import android.animation.Animator
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.SharedPreferences
 import androidx.annotation.MainThread
 import androidx.core.animation.doOnEnd
 import androidx.core.animation.doOnStart
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioOffloadSupportProvider
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain
+import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.extractor.DefaultExtractorsFactory
 import app.kreate.android.Preferences
+import app.kreate.android.service.Discord
+import it.fast4x.rimusic.utils.isAtLeastAndroid10
 import timber.log.Timber
+import java.io.IOException
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -21,8 +40,83 @@ import kotlin.math.pow
  */
 @UnstableApi
 class CustomExoPlayer(
-    private val player: ExoPlayer
+    context: Context,
+    dataSourceFactory: DataSource.Factory,
+    preferences: SharedPreferences,
+    private val discord: Discord,
+    private val player: ExoPlayer = makeBasePlayer( context, preferences, dataSourceFactory )
 ): ExoPlayer by player {
+
+    companion object {
+
+        private fun makeBasePlayer(
+            context: Context,
+            preferences: SharedPreferences,
+            dataSourceFactory: DataSource.Factory
+        ): ExoPlayer {
+            val datasourceFactory = DefaultMediaSourceFactory(
+                dataSourceFactory,
+                DefaultExtractorsFactory()
+            ).setLoadErrorHandlingPolicy(
+                object : DefaultLoadErrorHandlingPolicy() {
+                    override fun isEligibleForFallback(exception: IOException) = true
+                }
+            )
+
+            val renderFactory = object : DefaultRenderersFactory(context) {
+                override fun buildAudioSink(
+                    context: Context,
+                    enableFloatOutput: Boolean,
+                    enableAudioTrackPlaybackParams: Boolean
+                ): AudioSink {
+                    val skipSilenceLength = preferences.getLong( Preferences.AUDIO_SKIP_SILENCE_LENGTH.key, 1_000L )
+                    val minimumSilenceDuration = skipSilenceLength.coerceIn( 1_000L..2_000_000L )
+
+                    return DefaultAudioSink.Builder(context)
+                        .setEnableFloatOutput(enableFloatOutput)
+                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                        .setAudioOffloadSupportProvider(
+                            DefaultAudioOffloadSupportProvider(context)
+                        )
+                        .setAudioProcessorChain(
+                            DefaultAudioProcessorChain(
+                                arrayOf(),
+                                SilenceSkippingAudioProcessor(
+                                    /* minimumSilenceDurationUs = */ minimumSilenceDuration,
+                                    /* silenceRetentionRatio = */ 0.01f,
+                                    /* maxSilenceToKeepDurationUs = */ minimumSilenceDuration,
+                                    /* minVolumeToKeepPercentageWhenMuting = */ 0,
+                                    /* silenceThresholdLevel = */ 256
+                                ),
+                                SonicAudioProcessor()
+                            )
+                        )
+                        .build()
+                        .apply {
+                            if ( isAtLeastAndroid10 )
+                                setOffloadMode( AudioSink.OFFLOAD_MODE_DISABLED )
+                        }
+                }
+            }
+            val audioAttributes: AudioAttributes = AudioAttributes.Builder()
+                                                                  .setUsage( C.USAGE_MEDIA )
+                                                                  .setContentType( C.AUDIO_CONTENT_TYPE_MUSIC )
+                                                                  .build()
+            val handleAudioFocus = preferences.getBoolean(
+                Preferences.AUDIO_SMART_PAUSE_DURING_CALLS.key,
+                false
+            )
+
+            return ExoPlayer.Builder(context)
+                            .setMediaSourceFactory( datasourceFactory )
+                            .setRenderersFactory( renderFactory )
+                            .setHandleAudioBecomingNoisy( true )
+                            .setWakeMode( C.WAKE_MODE_NETWORK )
+                            .setAudioAttributes( audioAttributes, handleAudioFocus )
+                            .setUsePlatformDiagnostics( false )
+                            .build()
+        }
+    }
 
     private var volumeAnimator: ValueAnimator? = null
 
@@ -104,39 +198,30 @@ class CustomExoPlayer(
         }
     }
 
-    override fun getSecondaryRenderer( index: Int ) = player.getSecondaryRenderer( index )
+    fun onIsPlayingChanged(isPlaying: Boolean) {
+        if( !Preferences.isLoggedInToDiscord() )
+            return
 
-    override fun release() {
-        stopFadingEffect()
-        player.release()
+        val mediaItem = player.currentMediaItem ?: return
+        val startTime = System.currentTimeMillis() - player.currentPosition
+        @SuppressLint("NewApi")     // [Preferences.isLoggedInToDiscord] already verified it
+        if( isPlaying )
+            discord.updateMediaItem( mediaItem, startTime )
+        else
+            discord.pause( mediaItem, startTime )
     }
 
-    override fun play() {
-        val duration = Preferences.AUDIO_FADE_DURATION.value.asMillis
-        if( duration == 0L ) {
-            if( playbackState == Player.STATE_IDLE )
-                prepare()
-            player.play()
-            return
+    private fun pause0( updateDiscord: Boolean ) {
+        fun action() {
+            player.pause()
+
+            if( updateDiscord )
+                onIsPlayingChanged( false )
         }
 
-        startFade(
-            start = 0f,
-            end = volume,
-            durationInMillis = duration,
-            doOnStart = {
-                volume = 0f
-                if ( playbackState == Player.STATE_IDLE )
-                    prepare()
-                player.play()
-            }
-        )
-    }
-
-    override fun pause() {
         val duration = Preferences.AUDIO_FADE_DURATION.value.asMillis
         if( duration == 0L ) {
-            player.pause()
+            action()
             return
         }
 
@@ -146,15 +231,53 @@ class CustomExoPlayer(
             end = 0f,
             durationInMillis = duration,
             doOnEnd = {
-                player.pause()
+                action()
                 volume = originalVolume
             }
         )
     }
 
+    override fun getSecondaryRenderer( index: Int ) = player.getSecondaryRenderer( index )
+
+    override fun release() {
+        stopFadingEffect()
+        player.release()
+    }
+
+    override fun play() {
+        fun action() {
+            if( playbackState == Player.STATE_IDLE )
+                prepare()
+            player.play()
+
+            onIsPlayingChanged( true )
+        }
+
+        val duration = Preferences.AUDIO_FADE_DURATION.value.asMillis
+        if( duration == 0L ) {
+            action()
+            return
+        }
+
+        startFade(
+            start = 0f,
+            end = volume,
+            durationInMillis = duration,
+            doOnStart = {
+                volume = 0f
+                action()
+            }
+        )
+    }
+
+    override fun pause() = this.pause0( true )
+
     override fun stop() {
-        this.pause()
+        this.pause0( false )
         player.stop()
+
+        if( Preferences.isLoggedInToDiscord() )
+            discord.stop()
     }
 
     override fun getBufferedPercentage(): Int =

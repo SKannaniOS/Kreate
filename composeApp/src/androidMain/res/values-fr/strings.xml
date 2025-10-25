@@ -877,5 +877,9 @@ Volume BAS : titre précédent</string>
 >>>>>>> upstream/main
 =======
     <string name="error_failed_to_decipher_signature">Failed to decipher signature</string>
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+    <string name="error_failed_to_update_discord_activity">Failed to update Discord activity</string>
 >>>>>>> upstream/main
 </resources>

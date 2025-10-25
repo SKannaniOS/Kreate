@@ -1,15 +1,12 @@
 package app.kreate.android.di
 
-import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
+import android.content.SharedPreferences
 import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.util.fastFilter
 import androidx.core.net.toUri
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -22,31 +19,31 @@ import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERR
 <<<<<<< HEAD
 =======
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+<<<<<<< HEAD
 >>>>>>> upstream/main
 import androidx.media3.exoplayer.DefaultRenderersFactory
+=======
+>>>>>>> upstream/main
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioOffloadSupportProvider
-import androidx.media3.exoplayer.audio.DefaultAudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain
-import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
-import androidx.media3.extractor.DefaultExtractorsFactory
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.di.PlayerModule.upsertSongFormat
 import app.kreate.android.di.PlayerModule.upsertSongInfo
 <<<<<<< HEAD
+<<<<<<< HEAD
 import app.kreate.android.service.KtorHttpDatasource
 import app.kreate.android.service.NetworkService
 =======
+=======
+import app.kreate.android.service.Discord
+>>>>>>> upstream/main
 import app.kreate.android.service.NetworkService
 import app.kreate.android.service.player.CustomExoPlayer
 >>>>>>> upstream/main
 import app.kreate.android.utils.CharUtils
 import app.kreate.android.utils.ConnectivityUtils
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
+import app.kreate.android.utils.isLocalFile
 import com.grack.nanojson.JsonObject
 import com.grack.nanojson.JsonWriter
 import dagger.Module
@@ -69,7 +66,6 @@ import it.fast4x.rimusic.service.NoInternetException
 import it.fast4x.rimusic.service.PlayableFormatNotFoundException
 import it.fast4x.rimusic.service.UnplayableException
 import it.fast4x.rimusic.service.modern.LOCAL_KEY_PREFIX
-import it.fast4x.rimusic.utils.isAtLeastAndroid10
 import it.fast4x.rimusic.utils.isConnectionMetered
 import it.fast4x.rimusic.utils.isNetworkAvailable
 import kotlinx.coroutines.CoroutineScope
@@ -94,7 +90,6 @@ import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
 import org.schabi.newpipe.extractor.services.youtube.YoutubeStreamHelper
 import timber.log.Timber
-import java.io.IOException
 import java.net.UnknownHostException
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Named
@@ -498,8 +493,7 @@ object PlayerModule {
         // When player resumes from persistent queue, the videoId isn't path to the file,
         // but the following format: local:id. Therefore, checking for prefix is needed.
         val isLocal = videoId.startsWith(LOCAL_KEY_PREFIX, true )
-                || dataSpec.uri.scheme == ContentResolver.SCHEME_CONTENT
-                || dataSpec.uri.scheme == ContentResolver.SCHEME_FILE
+                || dataSpec.uri.isLocalFile()
 
         if( !isLocal )
             upsertSongInfo( context, videoId )
@@ -621,8 +615,9 @@ object PlayerModule {
 
     @Provides
     @Singleton
-    fun providesPlayer(
+    fun providesExoPlayer(
         @ApplicationContext context: Context,
+<<<<<<< HEAD
         @Named("playerDataSource") dataSourceFactory: DataSource.Factory
     ): ExoPlayer {
         val datasourceFactory = DefaultMediaSourceFactory(
@@ -687,6 +682,12 @@ object PlayerModule {
                         .let( ::CustomExoPlayer )
 >>>>>>> upstream/main
     }
+=======
+        @Named("playerDataSource") dataSourceFactory: DataSource.Factory,
+        preferences: SharedPreferences,
+        discord: Discord
+    ): ExoPlayer = CustomExoPlayer(context, dataSourceFactory, preferences, discord)
+>>>>>>> upstream/main
 
     /**
      * Remove cached url of [songId].
