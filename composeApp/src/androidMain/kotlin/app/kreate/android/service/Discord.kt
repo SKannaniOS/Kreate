@@ -1,10 +1,9 @@
 package app.kreate.android.service
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.compose.runtime.getValue
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import app.kreate.android.BuildConfig
@@ -21,11 +20,18 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.cleanPrefix
+import it.fast4x.rimusic.models.Album
 import it.fast4x.rimusic.models.Artist
+import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.utils.thumbnail
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import me.knighthat.discord.Status
@@ -41,7 +47,9 @@ import me.knighthat.utils.Toaster
 import org.jetbrains.annotations.Contract
 import timber.log.Timber
 import java.net.UnknownHostException
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import javax.inject.Named
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 import kotlin.time.Duration.Companion.seconds
@@ -49,9 +57,10 @@ import me.knighthat.discord.Discord as DiscordLib
 
 
 // TODO: Localize strings
-@RequiresApi(Build.VERSION_CODES.M)
 class Discord @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    @param:Named("plain") private val preferences: SharedPreferences,
+    @param:Named("private") private val privatePreferences: SharedPreferences
 ) {
 
     companion object {
@@ -60,6 +69,8 @@ class Discord @Inject constructor(
         private const val MAX_DIMENSION = 1024                           // Per Discord's guidelines
         private const val MAX_FILE_SIZE_BYTES = 2L * 1024 * 1024     // 2 MB in bytes
         private const val KREATE_IMAGE_URL = "https://i.ibb.co/bgZZ7bFx/discord-rpc-kreate.png"
+
+        private val cachedExternalUrls = ConcurrentHashMap<String, String>()
 
         const val LOGGING_TAG = "discord-integration"
     }
@@ -82,39 +93,17 @@ class Discord @Inject constructor(
         )
     }
 
+    @Volatile
+    private lateinit var loginListener: SharedPreferences.OnSharedPreferenceChangeListener
+    @Volatile
+    private lateinit var tokenListener: SharedPreferences.OnSharedPreferenceChangeListener
+    @Volatile
     private lateinit var smallImage: String
 
-    init {
-        Preferences.preferences.registerOnSharedPreferenceChangeListener { prefs, key ->
-            val loginPrefKey = Preferences.DISCORD_LOGIN.key
-            val atPrefKey = Preferences.DISCORD_ACCESS_TOKEN.key
-
-            when( key ) {
-                loginPrefKey -> {
-                    if ( !prefs.getBoolean( loginPrefKey, false ) ) {
-                        release()
-                        return@registerOnSharedPreferenceChangeListener
-                    }
-
-                    val token = prefs.getString( atPrefKey, "" )
-                    if( !token.isNullOrBlank() )
-                        login( token )
-                }
-
-                atPrefKey ->
-                    try {
-                        release()
-
-                        val token = prefs.getString( atPrefKey, "" )
-                        if( !token.isNullOrBlank() )
-                            login( token )
-                    } catch( e: Exception ) {
-                        e.printStackTrace()
-                        e.message?.also( Toaster::e )
-                    }
-            }
-        }
-    }
+    @Volatile
+    private var updateActivityJob: Job? = null
+    @Volatile
+    private var reconnectJob: Job? = null
 
     private fun login( token: String ) =
         CoroutineScope( Dispatchers.IO ).launch {
@@ -137,6 +126,7 @@ class Discord @Inject constructor(
             }
         }
 
+    //<editor-fold defaultstate="collapsed" desc="External image handler">
     private suspend fun uploadArtwork( artworkUri: Uri ): Result<String> =
         runCatching {
             Timber.tag( LOGGING_TAG ).v( "Uploading local artwork \"$artworkUri\" to online bucket" )
@@ -185,16 +175,26 @@ class Discord @Inject constructor(
 
         Timber.tag( LOGGING_TAG ).v( "Getting external url for artwork $artworkUri" )
 
+        val artworkCacheKey = artworkUri.toString()
+        if( cachedExternalUrls.containsKey( artworkCacheKey ) ) {
+            Timber.tag( LOGGING_TAG ).d( "artwork is cached" )
+            return cachedExternalUrls[artworkCacheKey]
+        }
+
         val artworkUri =
             if( artworkUri.isLocalFile() )
                 uploadArtwork( artworkUri ).getOrNull()
-                                           ?.let( String::toUri )
+                                           .toString()
             else
-                artworkUri
+                artworkUri.toString()
 
-        return DiscordLib.getExternalImageUrl( artworkUri.toString(), APPLICATION_ID )
+        return DiscordLib.getExternalImageUrl( artworkUri, APPLICATION_ID )
                          .fold(
-                             onSuccess = { it },
+                             onSuccess = {
+                                 cachedExternalUrls[artworkCacheKey] = it
+
+                                 it
+                             },
                              onFailure = {
                                  Toaster.e( R.string.error_failed_to_update_discord_activity )
 
@@ -220,55 +220,62 @@ class Discord @Inject constructor(
 
                           Timber.tag( LOGGING_TAG ).d( "Small image: $it" )
                       }
+    //</editor-fold>
+
+    //<editor-fold desc="Activity processor">
+    private suspend fun buildAssets(
+        mediaItem: MediaItem,
+        artist: Artist?,
+        listenToUrl: String?,
+        artistUrl: String?
+    ): Activity.Assets {
+        val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.thumbnail( MAX_DIMENSION )
+        val largeImage = thumbnailUrl?.let { getImageUrl(it) } ?: getAppLogoUrl()
+
+        val smallImage = artist?.thumbnailUrl?.let {
+            val sized = it.toUri().thumbnail( MAX_DIMENSION )
+            getImageUrl( sized )
+        } ?: getAppLogoUrl()
+
+        return Activity.Assets(largeImage, null, listenToUrl, smallImage, null, artistUrl ?: getAppButton.url)
+    }
+
+    private fun buildButtons( title: String, listenToUrl: String? ): List<Activity.Button> =
+        buildList {
+            add( getAppButton )
+            if( listenToUrl != null )
+                Activity.Button("Listen to $title", listenToUrl)
+                        .also( ::add )
+        }
 
     private suspend fun makeActivity( mediaItem: MediaItem, timeStart: Long ): Activity {
         Timber.tag( LOGGING_TAG ).v( "Making new activity from media item ${mediaItem.mediaId} at $timeStart" )
 
         val metadata = mediaItem.mediaMetadata
+        val isLocal = mediaItem.isLocal
 
-        val title = metadata.title.toString().let( ::cleanPrefix )
-        val timestamp = Activity.Timestamp(
-            start = timeStart,
-            end = timeStart + (metadata.durationMs ?: 0L)
-        )
-        val artistsText = metadata.artist?.toString()?.let( ::cleanPrefix )
+        //<editor-fold defaultstate="collapsed" desc="Artists">
         val artists: Artist? = Database.artistTable
                                        .findBySongId( mediaItem.mediaId )
                                        .firstOrNull()
                                        ?.firstOrNull()
+        val artistsText = metadata.artist?.toString()?.let( ::cleanPrefix )
+            ?: artists?.cleanName()
         // https://music.youtube.com/channel/[channelId]
         val artistUrl = artists?.let { "${Constants.YOUTUBE_MUSIC_URL}/channel/${it.id}" }
-        val album = metadata.albumTitle?.toString()?.let( ::cleanPrefix )
-        val listenToUrl = "${Constants.YOUTUBE_MUSIC_URL}/watch?v=${mediaItem.mediaId}"
-        val assets = Activity.Assets(
-            // [thumbnail] call only modifies youtube's thumbnail urls
-            largeImage = getImageUrl( metadata.artworkUri.thumbnail(MAX_DIMENSION) ),
-            largeText = null,
-            largeUrl = listenToUrl,
-            smallImage = artists?.thumbnailUrl
-                                .thumbnail( MAX_DIMENSION )
-                                ?.let {
-                                    try {
-                                        it.toUri()
-                                    } catch ( _: Exception ) {
-                                        null
-                                    }
-                                }
-                                ?.let {
-                                    Timber.tag( LOGGING_TAG ).v( "Using artist thumbnail as small image" )
-                                    getImageUrl( it )
-                                }
-                                ?: getAppLogoUrl(),
-            smallText = null,
-            smallUrl = artistUrl ?: getAppButton.url
-        )
-        val buttons = listOf(
-            getAppButton,
-            Activity.Button(
-                label = "Listen to $title",
-                url = listenToUrl
-            )
-        )
+        //</editor-fold>
+        //<editor-fold defaultstate="collapsed" desc="Album">
+        val album: Album? = Database.albumTable
+                                    .findBySongId( mediaItem.mediaId )
+                                    .firstOrNull()
+        val alumTitle = metadata.albumTitle?.toString()?.let( ::cleanPrefix )
+            ?: album?.cleanTitle()
+        //</editor-fold>
+        val title = metadata.title.toString().let( ::cleanPrefix )
+        val timestamp = Activity.Timestamp(timeStart, timeStart + (metadata.durationMs ?: 0L))
+        val listenToUrl = if( !isLocal ) "${Constants.YOUTUBE_MUSIC_URL}/watch?v=${mediaItem.mediaId}" else null
+        val assets = buildAssets( mediaItem, artists, listenToUrl, artistUrl )
+        val buttons = buildButtons( title, listenToUrl )
 
         return Activity(
             name = title,
@@ -278,33 +285,122 @@ class Discord @Inject constructor(
             applicationId = APPLICATION_ID,
             details = artistsText,
             detailsUrl = artistUrl,
-            state = album,
+            state = alumTitle,
             assets = assets,
             buttons = buttons
         )
     }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Listeners">
+    private fun registerLoginListener( loginKey: String, tokenKey: String ) {
+        if( ::loginListener.isInitialized ) return
+
+        loginListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if( key != loginKey )
+                return@OnSharedPreferenceChangeListener
+            if( !prefs.getBoolean( loginKey, false ) ) {
+                Timber.tag( LOGGING_TAG ).v( "disabling DiscordRPC" )
+                DiscordLib.logout()
+
+                return@OnSharedPreferenceChangeListener
+            } else
+                Timber.tag( LOGGING_TAG ).v( "enabling DiscordRPC" )
+
+            val token = privatePreferences.getString( tokenKey, null )
+            if( !token.isNullOrBlank() )
+                login( token )
+        }
+        preferences.registerOnSharedPreferenceChangeListener( loginListener )
+    }
+
+    private fun registerTokenListener( tokenKey: String ) {
+        if( ::tokenListener.isInitialized ) return
+
+        tokenListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if( key != tokenKey ) return@OnSharedPreferenceChangeListener
+
+            Timber.tag( LOGGING_TAG ).v( "access token's changed" )
+
+            // When access token's changed, all previous connection must be dropped.
+            // If new token is present, attempt to open a new connection with new token.
+            DiscordLib.logout()
+
+            val token = prefs.getString( key, null )
+            if( !token.isNullOrBlank() )
+                login( token )
+        }
+        privatePreferences.registerOnSharedPreferenceChangeListener( tokenListener )
+    }
+
+    private fun registerNetworkListener( loginKey: String, tokenKey: String ) {
+        reconnectJob?.cancel()
+
+        reconnectJob = CoroutineScope(Dispatchers.Unconfined).launch {
+            var isConnectionLost = false
+
+            @OptIn(FlowPreview::class)
+            ConnectivityUtils.isAvailable
+                             .distinctUntilChanged { a, b -> a == b}
+                             .debounce( 2.seconds )
+                             .collectLatest {
+                                 if( !it ) {
+                                     isConnectionLost = true
+                                     return@collectLatest
+                                 } else if( !isConnectionLost || !preferences.getBoolean( loginKey, false ) )
+                                     // When connectivity becomes unavailable, socket will be
+                                     // closed immediately, so it's not handled here.
+                                     return@collectLatest
+
+                                 isConnectionLost = false
+
+                                 val token = privatePreferences.getString( tokenKey, null )
+                                 if( !token.isNullOrBlank() )
+                                     login( token )
+                             }
+        }
+    }
+    //</editor-fold>
 
     fun register() {
-        val token by Preferences.DISCORD_ACCESS_TOKEN
-        if( DiscordLib.isReady()
-            || !Preferences.DISCORD_LOGIN.value
-            || token.isBlank()
-        ) return
-
         DiscordLib.setClient( NetworkService.client )
         Logger.handler = DiscordLogger()
 
+        val loginKey = Preferences.DISCORD_LOGIN.key
+        val tokenKey = Preferences.DISCORD_ACCESS_TOKEN.key
+
+        registerLoginListener( loginKey, tokenKey )
+        registerTokenListener( tokenKey )
+        registerNetworkListener( loginKey, tokenKey )
+
+        if( DiscordLib.isReady() || !Preferences.isLoggedInToDiscord() )
+            return
+
+        // This string should never be null when it's here
+        // If default value is returned, something's done wrong
+        val token = privatePreferences.getString( tokenKey, null )!!
         login( token )
     }
 
-    fun release() = DiscordLib.logout()
+    fun release() {
+        preferences.unregisterOnSharedPreferenceChangeListener( loginListener )
+        privatePreferences.unregisterOnSharedPreferenceChangeListener( tokenListener )
+        reconnectJob?.cancel()
 
+        DiscordLib.logout()
+    }
+
+    //<editor-fold defaultstate="collapsed" desc="Activity handler">
     fun updateMediaItem( mediaItem: MediaItem, timeStart: Long ) {
         if( !DiscordLib.isReady() ) return
 
-        Timber.tag( LOGGING_TAG ).v( "Update activity to new media item" )
+        updateActivityJob?.cancel()
 
-        CoroutineScope( Dispatchers.IO ).launch {
+        updateActivityJob = CoroutineScope( Dispatchers.IO ).launch {
+            delay( 1000 )
+
+            Timber.tag( LOGGING_TAG ).v( "Update activity to new media item" )
+
             val activity = makeActivity( mediaItem, timeStart )
             DiscordLib.updatePresence {
                 Presence(null, listOf( activity ), Status.ONLINE, false)
@@ -327,9 +423,13 @@ class Discord @Inject constructor(
     fun pause( mediaItem: MediaItem, timeStart: Long ) {
         if( !DiscordLib.isReady() ) return
 
-        Timber.tag( LOGGING_TAG ).v( "Sending pause activity to Discord" )
+        updateActivityJob?.cancel()
 
-        CoroutineScope( Dispatchers.IO ).launch {
+        updateActivityJob = CoroutineScope( Dispatchers.IO ).launch {
+            delay( 1000 )
+
+            Timber.tag( LOGGING_TAG ).v( "Sending pause activity to Discord" )
+
             val generated = makeActivity( mediaItem, timeStart )
 
             val activity = templateActivity.copy(
@@ -346,4 +446,5 @@ class Discord @Inject constructor(
             }
         }
     }
+    //</editor-fold>
 }
