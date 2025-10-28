@@ -100,6 +100,7 @@ import me.knighthat.database.AlbumTable
 import me.knighthat.innertube.Innertube
 import me.knighthat.innertube.model.InnertubeAlbum
 import me.knighthat.utils.Toaster
+import timber.log.Timber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @ExperimentalTextApi
@@ -148,7 +149,7 @@ fun HomeAlbums(
 
     val randomizer = object: Randomizer<Album> {
         override fun getItems(): List<Album> = itemsOnDisplay
-        override fun onClick(index: Int) = NavRoutes.YT_ALBUM.navigateHere( navController, itemsOnDisplay[index] )
+        override fun onClick(index: Int) = NavRoutes.YT_ALBUM.navigateHere( navController, itemsOnDisplay[index].id )
     }
     val shuffle = SongShuffler(
         databaseCall = Database.albumTable::allSongsInBookmarked,
@@ -225,9 +226,12 @@ fun HomeAlbums(
                      .onSuccess { results ->
                          onlineAlbums = results.fastMapNotNull { it as? InnertubeAlbum }
                      }
-                     .onFailure {
-                         it.printStackTrace()
-                         it.message?.also( Toaster::e )
+                     .onFailure { err ->
+                         Timber.tag( "HomeAlbums" ).e( err )
+                         Toaster.e(
+                             R.string.error_failed_to_sync_tab,
+                             context.getString( R.string.albums ).lowercase()
+                         )
                      }
         }
     }
@@ -496,7 +500,7 @@ fun HomeAlbums(
 
                                         },
                                         onGoToPlaylist = {
-                                            NavRoutes.localPlaylist.navigateHere( navController, it )
+                                            NavRoutes.localPlaylist.navigateHere( navController, it.toString() )
                                         }
                                     )
                                 }
