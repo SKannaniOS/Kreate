@@ -47,7 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFilter
-import androidx.compose.ui.util.fastMap
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -95,7 +94,6 @@ import it.fast4x.rimusic.utils.color
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.fadingEdge
 import it.fast4x.rimusic.utils.forcePlayAtIndex
-import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.getHttpClient
 import it.fast4x.rimusic.utils.isDownloadedSong
 import it.fast4x.rimusic.utils.isLandscape
@@ -103,6 +101,7 @@ import it.fast4x.rimusic.utils.isNetworkAvailable
 import it.fast4x.rimusic.utils.languageDestination
 import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.medium
+import it.fast4x.rimusic.utils.playShuffled
 import it.fast4x.rimusic.utils.secondary
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.CoroutineScope
@@ -192,7 +191,7 @@ fun YouTubePlaylist(
         )
         val addToFavorite = LikeComponent( ::getSongs )
         val enqueue = Enqueue {
-            binder.player.enqueue( getMediaItems(), context )
+            getSongs().also( binder.player::enqueue )
 
             // Turn of selector clears the selected list
             itemSelector.isActive = false
@@ -565,15 +564,9 @@ fun YouTubePlaylist(
 
                                     val selectedSongs = getSongs()
                                     if( song in selectedSongs )
-                                        binder.player.forcePlayAtIndex(
-                                            selectedSongs.fastMap( Song::asMediaItem ),
-                                            selectedSongs.indexOf( song )
-                                        )
+                                        binder.player.forcePlayAtIndex( selectedSongs, selectedSongs.indexOf( song ) )
                                     else
-                                        binder.player.forcePlayAtIndex(
-                                            itemsOnDisplay.fastMap( Song::asMediaItem ),
-                                            index
-                                        )
+                                        binder.player.forcePlayAtIndex( itemsOnDisplay, index )
                                 }
                             )
                         }
@@ -596,7 +589,7 @@ fun YouTubePlaylist(
                             }
 
                             binder.stopRadio()
-                            binder.player.forcePlayFromBeginning( getMediaItems() )
+                            getSongs().also( binder.player::playShuffled )
                         }
                     )
             }

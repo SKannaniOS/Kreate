@@ -270,12 +270,10 @@ fun YouTubeAlbum(
             }
         }
         val enqueue = Enqueue {
-            getMediaItems().let {
-                binder.player.enqueue( it, appContext() )
+            getSongs().also( binder.player::enqueue )
 
-                // Turn of selector clears the selected list
-                itemSelector.isActive = false
-            }
+            // Turn of selector clears the selected list
+            itemSelector.isActive = false
         }
         val addToPlaylist = PlaylistsMenu.init(
             navController,
@@ -524,15 +522,9 @@ fun YouTubeAlbum(
 
                                         val selectedSongs = getSongs()
                                         if( song in selectedSongs )
-                                            binder.player.forcePlayAtIndex(
-                                                selectedSongs.fastMap( Song::asMediaItem ),
-                                                selectedSongs.indexOf( song )
-                                            )
+                                            binder.player.forcePlayAtIndex( selectedSongs, selectedSongs.indexOf( song ) )
                                         else
-                                            binder.player.forcePlayAtIndex(
-                                                items.fastMap( Song::asMediaItem ),
-                                                index
-                                            )
+                                            binder.player.forcePlayAtIndex( items, index )
 
                                         /*
                                             Due to the small size of checkboxes,

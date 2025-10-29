@@ -45,7 +45,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.MediaItem
@@ -118,11 +117,11 @@ import it.fast4x.rimusic.utils.deleteFileIfExists
 import it.fast4x.rimusic.utils.durationTextToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.forcePlayAtIndex
-import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.formatAsTime
 import it.fast4x.rimusic.utils.isAtLeastAndroid14
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.manageDownload
+import it.fast4x.rimusic.utils.playShuffled
 import it.fast4x.rimusic.utils.saveImageToInternalStorage
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.Dispatchers
@@ -255,7 +254,7 @@ fun LocalPlaylistSongs(
         itemSelector.isActive = false
     }
     val enqueue = Enqueue {
-        binder?.player?.enqueue( getMediaItems(), context )
+        getSongs().also( binder.player::enqueue )
 
         // Turn of selector clears the selected list
         itemSelector.isActive = false
@@ -765,15 +764,9 @@ fun LocalPlaylistSongs(
 
                                 val selectedSongs = getSongs()
                                 if( song in selectedSongs )
-                                    binder.player.forcePlayAtIndex(
-                                        selectedSongs.fastMap( Song::asMediaItem ),
-                                        selectedSongs.indexOf( song )
-                                    )
+                                    binder.player.forcePlayAtIndex( selectedSongs, selectedSongs.indexOf( song ) )
                                 else
-                                    binder.player.forcePlayAtIndex(
-                                        itemsOnDisplay.fastMap( Song::asMediaItem ),
-                                        index
-                                    )
+                                    binder.player.forcePlayAtIndex( itemsOnDisplay, index )
 
                                 /*
                                     Due to the small size of checkboxes,
@@ -805,13 +798,8 @@ fun LocalPlaylistSongs(
                 iconId = R.drawable.shuffle,
                 visible = !reorderingState.isDragging,
                 onClick = {
-                    getMediaItems().let { songs ->
-                        if (songs.isNotEmpty()) {
-                            binder?.stopRadio()
-                            binder?.player
-                                  ?.forcePlayFromBeginning( songs.shuffled() )
-                        }
-                    }
+                    binder.stopRadio()
+                    getSongs().also( binder.player::playShuffled )
                 }
             )
     }

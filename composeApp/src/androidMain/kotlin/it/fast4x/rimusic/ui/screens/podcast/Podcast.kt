@@ -104,15 +104,16 @@ import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.addToYtPlaylist
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.durationTextToMillis
+import it.fast4x.rimusic.utils.durationToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.fadingEdge
 import it.fast4x.rimusic.utils.forcePlayAtIndex
-import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.formatAsTime
 import it.fast4x.rimusic.utils.isDownloadedSong
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.medium
+import it.fast4x.rimusic.utils.playShuffled
 import it.fast4x.rimusic.utils.secondary
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.CoroutineScope
@@ -447,9 +448,13 @@ fun Podcast(
                                     .padding(horizontal = 5.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            podcastPage?.listEpisode?.map(Innertube.Podcast.EpisodeItem::asMediaItem)?.let { mediaItems ->
-                                                binder?.player?.enqueue(mediaItems, context)
-                                            }
+                                            binder.player.enqueue(
+                                                items = podcastPage?.listEpisode.orEmpty(),
+                                                toMediaItem = Innertube.Podcast.EpisodeItem::asMediaItem,
+                                                getDuration = {
+                                                    durationToMillis( it.durationString.orEmpty() )
+                                                }
+                                            )
                                         },
                                         onLongClick = {
                                             Toaster.i( R.string.info_enqueue_songs )
@@ -466,15 +471,8 @@ fun Podcast(
                                     .padding(horizontal = 5.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            if (podcastPage?.listEpisode?.isNotEmpty() == true) {
-                                                binder?.stopRadio()
-                                                podcastPage?.listEpisode?.shuffled()?.map(Innertube.Podcast.EpisodeItem::asMediaItem)
-                                                    ?.let {
-                                                        binder?.player?.forcePlayFromBeginning(
-                                                            it
-                                                        )
-                                                    }
-                                            }
+                                            binder.stopRadio()
+                                            podcastPage?.listEpisode?.also( binder.player::playShuffled )
                                         },
                                         onLongClick = {
                                             Toaster.i( R.string.info_shuffle )
@@ -731,11 +729,16 @@ fun Podcast(
                             onClick = {
                                 searching = false
                                 filter = null
-                                podcastPage?.listEpisode?.map(Innertube.Podcast.EpisodeItem::asMediaItem)
-                                    ?.let { mediaItems ->
-                                        binder.stopRadio()
-                                        binder.player.forcePlayAtIndex(mediaItems, index)
+
+                                binder.stopRadio()
+                                binder.player.forcePlayAtIndex(
+                                    items = podcastPage?.listEpisode.orEmpty(),
+                                    index = index,
+                                    toMediaItem = Innertube.Podcast.EpisodeItem::asMediaItem,
+                                    getDuration = {
+                                        durationToMillis( it.durationString.orEmpty() )
                                     }
+                                )
                             }
                         )
                     }
@@ -759,14 +762,8 @@ fun Podcast(
                 lazyListState = lazyListState,
                 iconId = R.drawable.shuffle,
                 onClick = {
-                    podcastPage?.listEpisode?.let { songs ->
-                        if (songs.isNotEmpty()) {
-                            binder?.stopRadio()
-                            binder?.player?.forcePlayFromBeginning(
-                                songs.shuffled().map(Innertube.Podcast.EpisodeItem::asMediaItem)
-                            )
-                        }
-                    }
+                    binder.stopRadio()
+                    podcastPage?.listEpisode?.also( binder.player::playShuffled )
                 }
             )
 
