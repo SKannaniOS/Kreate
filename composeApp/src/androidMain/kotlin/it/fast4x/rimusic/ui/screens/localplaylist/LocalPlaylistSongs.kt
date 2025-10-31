@@ -73,7 +73,6 @@ import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.EXPLICIT_PREFIX
 import it.fast4x.rimusic.LocalPlayerServiceBinder
 import it.fast4x.rimusic.MONTHLY_PREFIX
-import it.fast4x.rimusic.appContext
 import it.fast4x.rimusic.cleanPrefix
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavigationBarPosition
@@ -248,7 +247,7 @@ fun LocalPlaylistSongs(
     }
 
     val playNext = PlayNext {
-        binder?.player?.addNext( getMediaItems(), appContext() )
+        getSongs().also( binder.player::addNext )
 
         // Turn of selector clears the selected list
         itemSelector.isActive = false
@@ -688,9 +687,7 @@ fun LocalPlaylistSongs(
 
                     SwipeableQueueItem(
                         mediaItem = song.asMediaItem,
-                        onPlayNext = {
-                            binder?.player?.addNext(song.asMediaItem)
-                        },
+                        onPlayNext = { binder.player.addNext( song ) },
                         onRemoveFromQueue = {
                             Database.asyncTransaction {
                                 songPlaylistMapTable.deleteBySongId( song.id, playlistId )
@@ -714,9 +711,7 @@ fun LocalPlaylistSongs(
                                 )
                             }
                         },
-                        onEnqueue = {
-                            binder?.player?.enqueue(song.asMediaItem)
-                        },
+                        onEnqueue = { binder.player.enqueue( song ) },
                     ) {
                         SongItem.Render(
                             song = song,
