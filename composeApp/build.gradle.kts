@@ -55,7 +55,7 @@ kotlin {
             implementation(compose.components.resources)
             implementation(compose.desktop.currentOs)
 
-            implementation(libs.material.icon.desktop)
+            implementation(libs.material.icons.desktop.ext)
             implementation(libs.vlcj)
         }
         androidMain.dependencies {
@@ -88,10 +88,6 @@ kotlin {
             implementation( libs.android.hilt )
         }
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
 
@@ -123,6 +119,8 @@ kotlin {
             implementation( libs.okhttp3.logging.interceptor )
 
             implementation( libs.math3 )
+
+            implementation( libs.material.icons.kmp )
         }
     }
 }
@@ -146,8 +144,8 @@ android {
         applicationId = "me.knighthat.kreate"
         minSdk = 21
         targetSdk = 36
-        versionCode = 122
-        versionName = "1.8.2"
+        versionCode = 123
+        versionName = "1.8.3"
 
         /*
                 UNIVERSAL VARIABLES
