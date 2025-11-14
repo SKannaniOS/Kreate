@@ -1,13 +1,14 @@
-package database.entities
+package app.kreate.database.models
 
 import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 
+
 @Immutable
 @Entity(
-    primaryKeys = ["songId", "artistId"],
+    primaryKeys = ["songId", "albumId"],
     foreignKeys = [
         ForeignKey(
             entity = Song::class,
@@ -16,14 +17,15 @@ import androidx.room.ForeignKey
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
-            entity = Artist::class,
+            entity = Album::class,
             parentColumns = ["id"],
-            childColumns = ["artistId"],
+            childColumns = ["albumId"],
             onDelete = ForeignKey.CASCADE
         )
     ]
 )
-data class SongArtistMap(
+data class SongAlbumMap(
     @ColumnInfo(index = true) val songId: String,
-    @ColumnInfo(index = true) val artistId: String
+    @ColumnInfo(index = true) val albumId: String,
+    val position: Int?
 )

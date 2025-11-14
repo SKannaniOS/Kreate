@@ -56,9 +56,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.remember
@@ -105,6 +106,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
+import androidx.compose.ui.util.fastFold
 import androidx.compose.ui.util.fastZip
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
@@ -122,6 +124,8 @@ import app.kreate.android.coil3.ImageFactory
 import app.kreate.android.drawable.AppIcon
 import app.kreate.android.screens.player.background.BlurredCover
 import app.kreate.android.themed.rimusic.screen.player.ActionBar
+import app.kreate.util.readableText
+import app.kreate.util.toDuration
 import coil3.request.allowHardware
 import com.mikepenz.hypnoticcanvas.shaderBackground
 import com.mikepenz.hypnoticcanvas.shaders.BlackCherryCosmos
@@ -173,9 +177,6 @@ import it.fast4x.rimusic.utils.SearchYoutubeEntity
 import it.fast4x.rimusic.utils.VerticalfadingEdge2
 import it.fast4x.rimusic.utils.currentWindow
 import it.fast4x.rimusic.utils.doubleShadowDrop
-import it.fast4x.rimusic.utils.durationTextToMillis
-import it.fast4x.rimusic.utils.formatAsDuration
-import it.fast4x.rimusic.utils.formatAsTime
 import it.fast4x.rimusic.utils.horizontalFadingEdge
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.mediaItems
@@ -196,6 +197,9 @@ import me.knighthat.utils.Toaster
 import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.math.absoluteValue
 import kotlin.math.sqrt
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -394,13 +398,13 @@ fun Player(
         .collectAsState(initial = null)
 
     val positionAndDuration by binder.player.positionAndDurationState()
-    var timeRemaining by remember { mutableIntStateOf(0) }
-    timeRemaining = positionAndDuration.second.toInt() - positionAndDuration.first.toInt()
+    var timeRemaining by remember { mutableLongStateOf(0) }
+    timeRemaining = positionAndDuration.second - positionAndDuration.first
 
     if (sleepTimerMillisLeft != null)
-        if (sleepTimerMillisLeft!! < timeRemaining.toLong() && !delayedSleepTimer)  {
+        if (sleepTimerMillisLeft!! < timeRemaining && !delayedSleepTimer)  {
             binder.cancelSleepTimer()
-            binder.startSleepTimer(timeRemaining.toLong())
+            binder.startSleepTimer(timeRemaining)
             delayedSleepTimer = true
             Toaster.n( R.string.info_sleep_timer_delayed_at_end_of_song )
         }
@@ -504,7 +508,7 @@ fun Player(
                             BasicText(
                                 text = stringResource(
                                     R.string.left,
-                                    formatAsDuration(amount * 5 * 60 * 1000L)
+                                    (amount * 5).toDuration( DurationUnit.MINUTES ).readableText()
                                 ),
                                 style = typography().s.semiBold,
                                 modifier = Modifier
@@ -533,7 +537,7 @@ fun Player(
                         CircularSlider(
                             stroke = 40f,
                             thumbColor = colorPalette().accent,
-                            text = formatAsDuration(amount * 5 * 60 * 1000L),
+                            text = (amount * 5).toDuration( DurationUnit.MINUTES ).readableText(),
                             modifier = Modifier
                                 .size(300.dp),
                             onChange = {
@@ -551,10 +555,10 @@ fun Player(
                 ) {
                     SecondaryTextButton(
                         text = stringResource(R.string.set_to) + " "
-                                + formatAsDuration(timeRemaining.toLong())
+                                + timeRemaining.toDuration( DurationUnit.MILLISECONDS ).readableText()
                                 + " " + stringResource(R.string.end_of_song),
                         onClick = {
-                            binder.startSleepTimer(timeRemaining.toLong())
+                            binder.startSleepTimer(timeRemaining)
                             isShowingSleepTimerDialog = false
                         }
                     )
@@ -668,14 +672,11 @@ fun Player(
 
     var sizeShader by remember { mutableStateOf(Size.Zero) }
 
-    var totalPlayTimes = 0L
-    mediaItems.forEach {
-        totalPlayTimes += it.mediaMetadata.extras?.getString("durationText")?.let { it1 ->
-            durationTextToMillis(it1)
-        }?.toLong() ?: 0
-    }
-
-
+    val totalDuration by remember {derivedStateOf {
+        mediaItems.fastFold( Duration.ZERO ) { acc, mediaItem ->
+            acc + mediaItem.mediaMetadata.extras?.getString("durationText").toDuration()
+        }
+    }}
     var isShowingStatsForNerds by rememberSaveable {
         mutableStateOf(false)
     }
@@ -2074,7 +2075,7 @@ fun Player(
 
                             Box {
                                 BasicText(
-                                    text = " ${formatAsTime(totalPlayTimes)}",
+                                    text = " $totalDuration",
                                     style = typography().xxs.semiBold.merge(
                                         TextStyle(
                                             textAlign = TextAlign.Center,
@@ -2085,7 +2086,7 @@ fun Player(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 BasicText(
-                                    text = " ${formatAsTime(totalPlayTimes)}",
+                                    text = " $totalDuration",
                                     style = typography().xxs.semiBold.merge(
                                         TextStyle(
                                             textAlign = TextAlign.Center,

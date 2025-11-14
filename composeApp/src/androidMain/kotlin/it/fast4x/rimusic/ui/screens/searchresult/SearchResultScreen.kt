@@ -33,6 +33,8 @@ import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.android.themed.rimusic.component.artist.ArtistItem
 import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.database.models.Album
+import app.kreate.database.models.SongAlbumMap
 import it.fast4x.compose.persist.persist
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
@@ -44,8 +46,6 @@ import it.fast4x.innertube.utils.from
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.LocalPlayerServiceBinder
 import it.fast4x.rimusic.enums.NavRoutes
-import it.fast4x.rimusic.models.Album
-import it.fast4x.rimusic.models.SongAlbumMap
 import it.fast4x.rimusic.ui.components.LocalMenuState
 import it.fast4x.rimusic.ui.components.Skeleton
 import it.fast4x.rimusic.ui.components.SwipeableAlbumItem
@@ -59,7 +59,6 @@ import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.asSong
-import it.fast4x.rimusic.utils.durationToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.forcePlay
 import it.fast4x.rimusic.utils.isDownloadedSong
@@ -178,13 +177,7 @@ fun SearchResultScreen(
                             SwipeablePlaylistItem(
                                 mediaItem = song.asMediaItem,
                                 onPlayNext = {
-                                    localBinder?.player?.addNext(
-                                        item = song,
-                                        toMediaItem = Innertube.SongItem::asMediaItem,
-                                        getDuration = {
-                                            durationToMillis( it.durationText.orEmpty() )
-                                        }
-                                    )
+                                    localBinder?.player?.addNext(song.asMediaItem)
                                 },
                                 onDownload = {
                                     localBinder?.cache?.removeResource(song.asMediaItem.mediaId)
@@ -198,13 +191,7 @@ fun SearchResultScreen(
                                     )
                                 },
                                 onEnqueue = {
-                                    binder.player.enqueue(
-                                        item = song,
-                                        toMediaItem = Innertube.SongItem::asMediaItem,
-                                        getDuration = {
-                                            durationToMillis( it.durationText.orEmpty() )
-                                        }
-                                    )
+                                    localBinder?.player?.enqueue(song.asMediaItem)
                                 }
                             ) {
                                 SongItem.Render(
@@ -272,14 +259,20 @@ fun SearchResultScreen(
 
                                                                     println("mediaItem success home album songsPage ${currentAlbumPage.songsPage} description ${currentAlbumPage.description} year ${currentAlbumPage.year}")
 
-                                                                    binder.player.addNext(
-                                                                        items = albumPage?.songsPage?.items.orEmpty(),
-                                                                        toMediaItem = Innertube.SongItem::asMediaItem,
-                                                                        getDuration = {
-                                                                            durationToMillis( it.durationText.orEmpty() )
+                                                                    albumPage
+                                                                        ?.songsPage
+                                                                        ?.items
+                                                                        ?.map(
+                                                                            Innertube.SongItem::asMediaItem
+                                                                        )
+                                                                        ?.let { it1 ->
+                                                                            withContext(Dispatchers.Main) {
+                                                                                binder?.player?.addNext(
+                                                                                    it1,
+                                                                                    context
+                                                                                )
+                                                                            }
                                                                         }
-                                                                    )
-
                                                                     println("mediaItem success add in queue album songsPage ${albumPage
                                                                         ?.songsPage
                                                                         ?.items?.size}")
@@ -312,14 +305,20 @@ fun SearchResultScreen(
 
                                                                     println("mediaItem success home album songsPage ${currentAlbumPage.songsPage} description ${currentAlbumPage.description} year ${currentAlbumPage.year}")
 
-                                                                    binder.player.enqueue(
-                                                                        items = albumPage?.songsPage?.items.orEmpty(),
-                                                                        toMediaItem = Innertube.SongItem::asMediaItem,
-                                                                        getDuration = {
-                                                                            durationToMillis( it.durationText.orEmpty() )
+                                                                    albumPage
+                                                                        ?.songsPage
+                                                                        ?.items
+                                                                        ?.map(
+                                                                            Innertube.SongItem::asMediaItem
+                                                                        )
+                                                                        ?.let { it1 ->
+                                                                            withContext(Dispatchers.Main) {
+                                                                                binder?.player?.enqueue(
+                                                                                    it1,
+                                                                                    context
+                                                                                )
+                                                                            }
                                                                         }
-                                                                    )
-
                                                                     println("mediaItem success add in queue album songsPage ${albumPage
                                                                         ?.songsPage
                                                                         ?.items?.size}")
@@ -471,11 +470,15 @@ fun SearchResultScreen(
                         itemContent = { video ->
                             SwipeablePlaylistItem(
                                 mediaItem = video.asMediaItem,
-                                onPlayNext = { localBinder?.player?.addNext( video ) },
+                                onPlayNext = {
+                                    localBinder?.player?.addNext(video.asMediaItem)
+                                },
                                 onDownload = {
                                     Toaster.w( R.string.downloading_videos_not_supported )
                                 },
-                                onEnqueue = { localBinder?.player?.enqueue( video ) }
+                                onEnqueue = {
+                                    localBinder?.player?.enqueue(video.asMediaItem)
+                                }
                             ) {
                                 SongItem.Render(
                                     innertubeVideo = video,
@@ -500,7 +503,7 @@ fun SearchResultScreen(
                                         if (isVideoEnabled)
                                             localBinder?.player?.playVideo(video.asMediaItem)
                                         else
-                                            localBinder?.player?.forcePlay( video )
+                                            localBinder?.player?.forcePlay(video.asMediaItem)
                                     }
                                 )
                             }

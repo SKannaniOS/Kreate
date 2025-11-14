@@ -40,15 +40,16 @@ import app.kreate.android.themed.rimusic.component.Search
 import app.kreate.android.themed.rimusic.component.song.PeriodSelector
 import app.kreate.android.themed.rimusic.component.song.SongItem
 import app.kreate.android.themed.rimusic.component.tab.Sort
+import app.kreate.database.models.Song
+import app.kreate.util.EXPLICIT_PREFIX
+import app.kreate.util.toDuration
 import it.fast4x.compose.persist.persistList
 import it.fast4x.rimusic.Database
-import it.fast4x.rimusic.EXPLICIT_PREFIX
 import it.fast4x.rimusic.LocalPlayerServiceBinder
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.BuiltInPlaylist
 import it.fast4x.rimusic.enums.DurationInMinutes
 import it.fast4x.rimusic.enums.SongSortBy
-import it.fast4x.rimusic.models.Song
 import it.fast4x.rimusic.service.MyDownloadHelper
 import it.fast4x.rimusic.service.modern.LOCAL_KEY_PREFIX
 import it.fast4x.rimusic.service.modern.isLocal
@@ -66,7 +67,6 @@ import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.center
 import it.fast4x.rimusic.utils.color
-import it.fast4x.rimusic.utils.durationTextToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.forcePlayAtIndex
 import it.fast4x.rimusic.utils.isDownloadedSong
@@ -190,8 +190,7 @@ fun HomeSongs(
                                                // Exclude songs with duration higher than what [excludeSongWithDurationLimit] is
                                                list.fastFilter { song ->
                                                    excludeSongWithDurationLimit == DurationInMinutes.Disabled
-                                                           || song.durationText
-                                                                  ?.let { durationTextToMillis(it) < excludeSongWithDurationLimit.asMillis } == true
+                                                           || song.durationText.toDuration().inWholeMilliseconds < excludeSongWithDurationLimit.asMillis
                                                }
                                            }
 
@@ -268,7 +267,7 @@ fun HomeSongs(
 
             SwipeablePlaylistItem(
                 mediaItem = mediaItem,
-                onPlayNext = { binder.player.addNext( song ) },
+                onPlayNext = { binder?.player?.addNext( mediaItem ) },
                 onDownload = {
                     if( builtInPlaylist != BuiltInPlaylist.OnDevice ) {
                         binder?.cache?.removeResource(mediaItem.mediaId)
@@ -283,7 +282,9 @@ fun HomeSongs(
                             )
                     }
                 },
-                onEnqueue = { binder.player.enqueue( song ) }
+                onEnqueue = {
+                    binder?.player?.enqueue(mediaItem)
+                }
             ) {
                 SongItem.Render(
                     song = song,
@@ -335,9 +336,15 @@ fun HomeSongs(
 
                         val selectedSongs = getSongs()
                         if( song in selectedSongs )
-                            binder.player.forcePlayAtIndex( selectedSongs, selectedSongs.indexOf( song ) )
+                            binder.player.forcePlayAtIndex(
+                                selectedSongs.fastMap( Song::asMediaItem ),
+                                selectedSongs.indexOf( song )
+                            )
                         else
-                            binder.player.forcePlayAtIndex( itemsOnDisplay, index )
+                            binder.player.forcePlayAtIndex(
+                                itemsOnDisplay.fastMap( Song::asMediaItem ),
+                                index
+                            )
                     }
                 )
             }

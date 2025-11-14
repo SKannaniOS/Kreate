@@ -30,11 +30,12 @@ import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.database.models.Song
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.LocalPlayerServiceBinder
+import it.fast4x.rimusic.appContext
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.MenuStyle
-import it.fast4x.rimusic.models.Song
 import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.ui.components.LocalMenuState
 import it.fast4x.rimusic.ui.components.MenuState
@@ -129,10 +130,10 @@ class SongItemMenu private constructor(
         val changeAuthor = ChangeAuthorDialog{ song }
         val startRadio = Radio { listOf(song) }
         val playNext = PlayNext {
-            binder.player.addNext( listOf(song) )
+            binder?.player?.addNext( listOf(song.asMediaItem), appContext() )
         }
         val enqueue = Enqueue {
-            binder.player.enqueue( listOf(song) )
+            binder?.player?.enqueue( listOf(song.asMediaItem), appContext() )
         }
         val addToFavorite = LikeComponent { listOf(song) }
         val addToPlaylist = PlaylistsMenu.init(

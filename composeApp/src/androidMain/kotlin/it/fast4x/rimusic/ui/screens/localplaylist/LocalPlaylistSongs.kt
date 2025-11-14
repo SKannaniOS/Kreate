@@ -45,6 +45,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastFold
+import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.MediaItem
@@ -61,6 +63,12 @@ import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.playlist.PlaylistSongsSort
 import app.kreate.android.themed.rimusic.component.playlist.PositionLock
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.database.models.Song
+import app.kreate.database.models.SongPlaylistMap
+import app.kreate.util.EXPLICIT_PREFIX
+import app.kreate.util.MONTHLY_PREFIX
+import app.kreate.util.cleanPrefix
+import app.kreate.util.toDuration
 import com.github.doyaaaaaken.kotlincsv.client.KotlinCsvExperimental
 import it.fast4x.compose.persist.persistList
 import it.fast4x.compose.reordering.draggedItem
@@ -70,16 +78,12 @@ import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.NextBody
 import it.fast4x.innertube.requests.relatedSongs
 import it.fast4x.rimusic.Database
-import it.fast4x.rimusic.EXPLICIT_PREFIX
 import it.fast4x.rimusic.LocalPlayerServiceBinder
-import it.fast4x.rimusic.MONTHLY_PREFIX
-import it.fast4x.rimusic.cleanPrefix
+import it.fast4x.rimusic.appContext
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavigationBarPosition
 import it.fast4x.rimusic.enums.PlaylistSongSortBy
 import it.fast4x.rimusic.enums.UiType
-import it.fast4x.rimusic.models.Song
-import it.fast4x.rimusic.models.SongPlaylistMap
 import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.thumbnailShape
 import it.fast4x.rimusic.typography
@@ -113,14 +117,12 @@ import it.fast4x.rimusic.utils.center
 import it.fast4x.rimusic.utils.checkFileExists
 import it.fast4x.rimusic.utils.color
 import it.fast4x.rimusic.utils.deleteFileIfExists
-import it.fast4x.rimusic.utils.durationTextToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.forcePlayAtIndex
-import it.fast4x.rimusic.utils.formatAsTime
+import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.isAtLeastAndroid14
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.manageDownload
-import it.fast4x.rimusic.utils.playShuffled
 import it.fast4x.rimusic.utils.saveImageToInternalStorage
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.Dispatchers
@@ -138,6 +140,7 @@ import me.knighthat.component.tab.Locator
 import me.knighthat.component.tab.SongShuffler
 import me.knighthat.utils.Toaster
 import timber.log.Timber
+import kotlin.time.Duration
 
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -247,13 +250,13 @@ fun LocalPlaylistSongs(
     }
 
     val playNext = PlayNext {
-        getSongs().also( binder.player::addNext )
+        binder?.player?.addNext( getMediaItems(), appContext() )
 
         // Turn of selector clears the selected list
         itemSelector.isActive = false
     }
     val enqueue = Enqueue {
-        getSongs().also( binder.player::enqueue )
+        binder?.player?.enqueue( getMediaItems(), context )
 
         // Turn of selector clears the selected list
         itemSelector.isActive = false
@@ -544,9 +547,13 @@ fun LocalPlaylistSongs(
                         )
                         Spacer(modifier = Modifier.height(5.dp))
 
-                        val totalDuration = items.sumOf { durationTextToMillis(it.durationText ?: "0:0") }
+                        val totalDuration by remember {derivedStateOf {
+                            items.fastFold( Duration.ZERO ) { acc, song ->
+                                acc + song.durationText.toDuration()
+                            }
+                        }}
                         IconInfo(
-                            title = formatAsTime( totalDuration ),
+                            title = totalDuration.toString(),
                             icon = painterResource(R.drawable.time)
                         )
                         if (isRecommendationEnabled) {
@@ -687,7 +694,9 @@ fun LocalPlaylistSongs(
 
                     SwipeableQueueItem(
                         mediaItem = song.asMediaItem,
-                        onPlayNext = { binder.player.addNext( song ) },
+                        onPlayNext = {
+                            binder?.player?.addNext(song.asMediaItem)
+                        },
                         onRemoveFromQueue = {
                             Database.asyncTransaction {
                                 songPlaylistMapTable.deleteBySongId( song.id, playlistId )
@@ -711,7 +720,9 @@ fun LocalPlaylistSongs(
                                 )
                             }
                         },
-                        onEnqueue = { binder.player.enqueue( song ) },
+                        onEnqueue = {
+                            binder?.player?.enqueue(song.asMediaItem)
+                        },
                     ) {
                         SongItem.Render(
                             song = song,
@@ -759,9 +770,15 @@ fun LocalPlaylistSongs(
 
                                 val selectedSongs = getSongs()
                                 if( song in selectedSongs )
-                                    binder.player.forcePlayAtIndex( selectedSongs, selectedSongs.indexOf( song ) )
+                                    binder.player.forcePlayAtIndex(
+                                        selectedSongs.fastMap( Song::asMediaItem ),
+                                        selectedSongs.indexOf( song )
+                                    )
                                 else
-                                    binder.player.forcePlayAtIndex( itemsOnDisplay, index )
+                                    binder.player.forcePlayAtIndex(
+                                        itemsOnDisplay.fastMap( Song::asMediaItem ),
+                                        index
+                                    )
 
                                 /*
                                     Due to the small size of checkboxes,
@@ -793,8 +810,13 @@ fun LocalPlaylistSongs(
                 iconId = R.drawable.shuffle,
                 visible = !reorderingState.isDragging,
                 onClick = {
-                    binder.stopRadio()
-                    getSongs().also( binder.player::playShuffled )
+                    getMediaItems().let { songs ->
+                        if (songs.isNotEmpty()) {
+                            binder?.stopRadio()
+                            binder?.player
+                                  ?.forcePlayFromBeginning( songs.shuffled() )
+                        }
+                    }
                 }
             )
     }

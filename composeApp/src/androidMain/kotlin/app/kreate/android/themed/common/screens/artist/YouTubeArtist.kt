@@ -68,13 +68,14 @@ import app.kreate.android.utils.innertube.toMediaItem
 import app.kreate.android.utils.innertube.toSong
 import app.kreate.android.utils.renderDescription
 import app.kreate.android.utils.scrollingText
+import app.kreate.database.models.Artist
+import app.kreate.database.models.Song
+import app.kreate.database.models.SongArtistMap
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.LocalPlayerServiceBinder
+import it.fast4x.rimusic.appContext
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavRoutes
-import it.fast4x.rimusic.models.Artist
-import it.fast4x.rimusic.models.Song
-import it.fast4x.rimusic.models.SongArtistMap
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.Skeleton
 import it.fast4x.rimusic.ui.components.SwipeablePlaylistItem
@@ -89,7 +90,6 @@ import it.fast4x.rimusic.ui.styling.px
 import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
-import it.fast4x.rimusic.utils.durationToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.fadingEdge
 import it.fast4x.rimusic.utils.forcePlayAtIndex
@@ -246,10 +246,14 @@ fun YouTubeArtist(
         }
         val radio = Radio(::getSongs)
         val playNext = PlayNext {
-            getSongs().also( binder.player::addNext )
+            getMediaItems().let {
+                binder.player.addNext( it, appContext() )
+            }
         }
         val enqueue = Enqueue {
-            getSongs().also( binder.player::enqueue )
+            getMediaItems().let {
+                binder.player.enqueue( it, appContext() )
+            }
         }
 
         downloadAllDialog.Render()
@@ -425,7 +429,9 @@ fun YouTubeArtist(
                         ) { index, song ->
                             SwipeablePlaylistItem(
                                 mediaItem = song.asMediaItem,
-                                onPlayNext = { binder.player.addNext( song ) }
+                                onPlayNext = {
+                                    binder.player.addNext( song.asMediaItem )
+                                }
                             ) {
                                 SongItem.Render(
                                     song = song,
@@ -438,7 +444,10 @@ fun YouTubeArtist(
                                     showThumbnail = true,
                                     onClick = {
                                         binder.stopRadio()
-                                        binder.player.forcePlayAtIndex( songs, index )
+                                        binder.player.forcePlayAtIndex(
+                                            songs.map( Song::asMediaItem ),
+                                            index
+                                        )
                                     }
                                 )
                             }
@@ -463,13 +472,7 @@ fun YouTubeArtist(
                                      SwipeablePlaylistItem(
                                          mediaItem = song.toMediaItem,
                                          onPlayNext = {
-                                             binder.player.addNext(
-                                                 item = song,
-                                                 toMediaItem = InnertubeSong::toMediaItem,
-                                                 getDuration = {
-                                                     durationToMillis( it.durationText.orEmpty() )
-                                                 }
-                                             )
+                                             binder.player.addNext( song.toMediaItem )
                                          }
                                      ) {
                                          SongItem.Render(
@@ -483,9 +486,10 @@ fun YouTubeArtist(
                                              showThumbnail = true,
                                              onClick = {
                                                  binder.stopRadio()
-                                                 binder.player.forcePlayAtIndex( songs, index, InnertubeSong::toMediaItem ) {
-                                                     durationToMillis( it.durationText.orEmpty() )
-                                                 }
+                                                 binder.player.forcePlayAtIndex(
+                                                     songs.map( InnertubeSong::toMediaItem ),
+                                                     index
+                                                 )
                                              }
                                          )
                                      }

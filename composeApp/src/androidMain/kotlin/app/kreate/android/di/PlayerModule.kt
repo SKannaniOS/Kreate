@@ -44,6 +44,8 @@ import app.kreate.android.utils.CharUtils
 import app.kreate.android.utils.ConnectivityUtils
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.isLocalFile
+import app.kreate.database.models.Format
+import app.kreate.util.LOCAL_KEY_PREFIX
 import com.grack.nanojson.JsonObject
 import com.grack.nanojson.JsonWriter
 import dagger.Module
@@ -59,13 +61,11 @@ import io.ktor.util.collections.ConcurrentMap
 import io.ktor.util.network.UnresolvedAddressException
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.enums.AudioQualityFormat
-import it.fast4x.rimusic.models.Format
 import it.fast4x.rimusic.service.LoginRequiredException
 import it.fast4x.rimusic.service.MissingDecipherKeyException
 import it.fast4x.rimusic.service.NoInternetException
 import it.fast4x.rimusic.service.PlayableFormatNotFoundException
 import it.fast4x.rimusic.service.UnplayableException
-import it.fast4x.rimusic.service.modern.LOCAL_KEY_PREFIX
 import it.fast4x.rimusic.utils.isConnectionMetered
 import it.fast4x.rimusic.utils.isNetworkAvailable
 import kotlinx.coroutines.CoroutineScope
@@ -684,7 +684,11 @@ object PlayerModule {
         @Named("playerDataSource") dataSourceFactory: DataSource.Factory,
         @Named("plain") preferences: SharedPreferences,
         discord: Discord
+<<<<<<< HEAD
     ): ExoPlayer = CustomExoPlayer(context, dataSourceFactory, preferences, discord)
+>>>>>>> upstream/main
+=======
+    ): ExoPlayer = CustomExoPlayer(dataSourceFactory, preferences, context, discord)
 >>>>>>> upstream/main
 
     /**

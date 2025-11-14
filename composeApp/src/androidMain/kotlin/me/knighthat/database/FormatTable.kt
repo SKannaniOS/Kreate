@@ -4,12 +4,12 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Upsert
-import it.fast4x.rimusic.MODIFIED_PREFIX
+import app.kreate.database.models.Format
+import app.kreate.database.models.Song
+import app.kreate.util.MODIFIED_PREFIX
+import app.kreate.util.toDuration
 import it.fast4x.rimusic.enums.SongSortBy
 import it.fast4x.rimusic.enums.SortOrder
-import it.fast4x.rimusic.models.Format
-import it.fast4x.rimusic.models.Song
-import it.fast4x.rimusic.utils.durationToMillis
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import me.knighthat.database.ext.FormatWithSong
@@ -142,9 +142,7 @@ interface FormatTable {
 
     fun sortAllWithSongsByDuration( limit: Int = Int.MAX_VALUE, excludeHidden: Boolean = false ): Flow<List<FormatWithSong>> =
         allWithSongs( limit, excludeHidden ).map { list ->
-            list.sortedBy {
-                durationToMillis( it.song.durationText ?: "0:0" )
-            }
+            list.sortedBy { it.song.durationText.toDuration() }
         }
 
     @Query("""

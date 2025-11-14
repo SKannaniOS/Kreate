@@ -437,7 +437,7 @@
     <string name="setting_description_runtime_log">%s üzərindən olan hər şeyi qeydə alır</string>
     <string name="copy_log_to_clipboard">Jurnalı buferə köçür</string>
     <string name="fake_audio_bar">Saxta Səs Cizgisi</string>
-    <string name="copy_crash_log_to_clipboard">Copy crash log</string>
+    <string name="copy_crash_log_to_clipboard">Çökmə qeydin köçür</string>
     <string name="title_backup_and_restore">NÜSXƏLƏ VƏ BƏRPA ET</string>
     <string name="message_excluded_s_songs">%s mahnı çıxarıldı</string>
     <string name="show_thumbnail">Miniatürü göstər</string>
@@ -911,11 +911,14 @@
     <string name="error_failed_to_acquire_account_info">Failed to acquire account info</string>
     <string name="error_failed_to_sync_tab">Failed to sync %s</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 =======
     <string name="warning_num_songs_exlucded_because_duration_limit">%s excluded because their duration exceed duration limit</string>
     <string name="warning_songs_duration_exceeds_limit">Selected song\s duration exceeds limit</string>
     <string name="warning_no_valid_songs">No valid songs</string>
     <string name="warning_nothing_to_shuffle">Nothing to shuffle</string>
+>>>>>>> upstream/main
+=======
 >>>>>>> upstream/main
 </resources>

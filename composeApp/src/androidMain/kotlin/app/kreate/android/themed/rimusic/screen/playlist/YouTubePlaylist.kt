@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastMap
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -61,13 +62,13 @@ import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toSong
 import app.kreate.android.utils.renderDescription
 import app.kreate.android.utils.scrollingText
+import app.kreate.database.models.Song
+import app.kreate.util.EXPLICIT_PREFIX
 import it.fast4x.innertube.YtMusic
 import it.fast4x.rimusic.Database
-import it.fast4x.rimusic.EXPLICIT_PREFIX
 import it.fast4x.rimusic.LocalPlayerServiceBinder
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.UiType
-import it.fast4x.rimusic.models.Song
 import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.LocalMenuState
@@ -91,12 +92,12 @@ import it.fast4x.rimusic.utils.collectLatest
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.fadingEdge
 import it.fast4x.rimusic.utils.forcePlayAtIndex
+import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.isDownloadedSong
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.isNetworkAvailable
 import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.medium
-import it.fast4x.rimusic.utils.playShuffled
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -181,7 +182,7 @@ fun YouTubePlaylist(
         )
         val addToFavorite = LikeComponent( ::getSongs )
         val enqueue = Enqueue {
-            getSongs().also( binder.player::enqueue )
+            binder.player.enqueue( getMediaItems(), context )
 
             // Turn of selector clears the selected list
             itemSelector.isActive = false
@@ -439,7 +440,9 @@ fun YouTubePlaylist(
 
                         SwipeablePlaylistItem(
                             mediaItem = song.asMediaItem,
-                            onPlayNext = { binder.player.addNext( song ) },
+                            onPlayNext = {
+                                binder.player.addNext( song.asMediaItem )
+                            },
                             onDownload = {
                                 binder.cache.removeResource( song.id )
                                 Database.asyncTransaction {
@@ -453,7 +456,9 @@ fun YouTubePlaylist(
                                         downloadState = isDownloaded
                                     )
                             },
-                            onEnqueue = { binder.player.enqueue( song ) }
+                            onEnqueue = {
+                                binder.player.enqueue(song.asMediaItem)
+                            }
                         ) {
                             SongItem.Render(
                                 song = song,
@@ -470,9 +475,15 @@ fun YouTubePlaylist(
 
                                     val selectedSongs = getSongs()
                                     if( song in selectedSongs )
-                                        binder.player.forcePlayAtIndex( selectedSongs, selectedSongs.indexOf( song ) )
+                                        binder.player.forcePlayAtIndex(
+                                            selectedSongs.fastMap( Song::asMediaItem ),
+                                            selectedSongs.indexOf( song )
+                                        )
                                     else
-                                        binder.player.forcePlayAtIndex( itemsOnDisplay, index )
+                                        binder.player.forcePlayAtIndex(
+                                            itemsOnDisplay.fastMap( Song::asMediaItem ),
+                                            index
+                                        )
                                 }
                             )
                         }
@@ -495,7 +506,7 @@ fun YouTubePlaylist(
                             }
 
                             binder.stopRadio()
-                            getSongs().also( binder.player::playShuffled )
+                            binder.player.forcePlayFromBeginning( getMediaItems() )
                         }
                     )
             }

@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastFold
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -69,6 +70,8 @@ import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
 import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.database.models.Playlist
+import app.kreate.util.toDuration
 import it.fast4x.compose.persist.persist
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.bodies.BrowseBody
@@ -79,7 +82,6 @@ import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavRoutes
 import it.fast4x.rimusic.enums.NavigationBarPosition
 import it.fast4x.rimusic.enums.UiType
-import it.fast4x.rimusic.models.Playlist
 import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.LocalMenuState
@@ -103,17 +105,14 @@ import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.addToYtPlaylist
 import it.fast4x.rimusic.utils.asMediaItem
-import it.fast4x.rimusic.utils.durationTextToMillis
-import it.fast4x.rimusic.utils.durationToMillis
 import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.fadingEdge
 import it.fast4x.rimusic.utils.forcePlayAtIndex
-import it.fast4x.rimusic.utils.formatAsTime
+import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.isDownloadedSong
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.medium
-import it.fast4x.rimusic.utils.playShuffled
 import it.fast4x.rimusic.utils.secondary
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.CoroutineScope
@@ -121,6 +120,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.knighthat.utils.Toaster
+import kotlin.time.Duration
 
 
 @ExperimentalTextApi
@@ -189,11 +189,13 @@ fun Podcast(
 
     var thumbnailRoundness by Preferences.THUMBNAIL_BORDER_RADIUS
 
-    var totalPlayTimes = 0L
-    podcastPage?.listEpisode?.forEach {
-        totalPlayTimes += it.durationString?.let { it1 ->
-            durationTextToMillis(it1) }?.toLong() ?: 0
-    }
+    val totalDuration by remember {derivedStateOf {
+        podcastPage?.listEpisode
+                    .orEmpty()
+                    .fastFold( Duration.ZERO ) { acc, dur ->
+                        acc + dur.durationString.toDuration()
+                    }
+    }}
 
     if (isImportingPlaylist) {
         InputTextDialog(
@@ -301,7 +303,7 @@ fun Podcast(
                             BasicText(
                                 text = podcastPage!!.listEpisode.size.toString() + " "
                                         + stringResource(R.string.songs)
-                                        + " - " + formatAsTime(totalPlayTimes),
+                                        + " - " + totalDuration,
                                 style = typography().xs.medium,
                                 maxLines = 1,
                                 modifier = Modifier
@@ -448,13 +450,9 @@ fun Podcast(
                                     .padding(horizontal = 5.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            binder.player.enqueue(
-                                                items = podcastPage?.listEpisode.orEmpty(),
-                                                toMediaItem = Innertube.Podcast.EpisodeItem::asMediaItem,
-                                                getDuration = {
-                                                    durationToMillis( it.durationString.orEmpty() )
-                                                }
-                                            )
+                                            podcastPage?.listEpisode?.map(Innertube.Podcast.EpisodeItem::asMediaItem)?.let { mediaItems ->
+                                                binder?.player?.enqueue(mediaItems, context)
+                                            }
                                         },
                                         onLongClick = {
                                             Toaster.i( R.string.info_enqueue_songs )
@@ -471,8 +469,15 @@ fun Podcast(
                                     .padding(horizontal = 5.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            binder.stopRadio()
-                                            podcastPage?.listEpisode?.also( binder.player::playShuffled )
+                                            if (podcastPage?.listEpisode?.isNotEmpty() == true) {
+                                                binder?.stopRadio()
+                                                podcastPage?.listEpisode?.shuffled()?.map(Innertube.Podcast.EpisodeItem::asMediaItem)
+                                                    ?.let {
+                                                        binder?.player?.forcePlayFromBeginning(
+                                                            it
+                                                        )
+                                                    }
+                                            }
                                         },
                                         onLongClick = {
                                             Toaster.i( R.string.info_shuffle )
@@ -691,13 +696,7 @@ fun Podcast(
                     SwipeablePlaylistItem(
                         mediaItem = song.asMediaItem,
                         onPlayNext = {
-                            binder.player.addNext(
-                                item = song,
-                                toMediaItem = Innertube.Podcast.EpisodeItem::asMediaItem,
-                                getDuration = {
-                                    durationToMillis( it.durationString.orEmpty() )
-                                }
-                            )
+                            binder?.player?.addNext(song.asMediaItem)
                         },
                         onDownload = {
                             binder?.cache?.removeResource(song.asMediaItem.mediaId)
@@ -713,13 +712,7 @@ fun Podcast(
                                 )
                         },
                         onEnqueue = {
-                            binder.player.enqueue(
-                                item = song,
-                                toMediaItem = Innertube.Podcast.EpisodeItem::asMediaItem,
-                                getDuration = {
-                                    durationToMillis( it.durationString.orEmpty() )
-                                }
-                            )
+                            binder?.player?.enqueue(song.asMediaItem)
                         }
                     ) {
                         SongItem.Render(
@@ -741,16 +734,11 @@ fun Podcast(
                             onClick = {
                                 searching = false
                                 filter = null
-
-                                binder.stopRadio()
-                                binder.player.forcePlayAtIndex(
-                                    items = podcastPage?.listEpisode.orEmpty(),
-                                    index = index,
-                                    toMediaItem = Innertube.Podcast.EpisodeItem::asMediaItem,
-                                    getDuration = {
-                                        durationToMillis( it.durationString.orEmpty() )
+                                podcastPage?.listEpisode?.map(Innertube.Podcast.EpisodeItem::asMediaItem)
+                                    ?.let { mediaItems ->
+                                        binder.stopRadio()
+                                        binder.player.forcePlayAtIndex(mediaItems, index)
                                     }
-                                )
                             }
                         )
                     }
@@ -774,8 +762,14 @@ fun Podcast(
                 lazyListState = lazyListState,
                 iconId = R.drawable.shuffle,
                 onClick = {
-                    binder.stopRadio()
-                    podcastPage?.listEpisode?.also( binder.player::playShuffled )
+                    podcastPage?.listEpisode?.let { songs ->
+                        if (songs.isNotEmpty()) {
+                            binder?.stopRadio()
+                            binder?.player?.forcePlayFromBeginning(
+                                songs.shuffled().map(Innertube.Podcast.EpisodeItem::asMediaItem)
+                            )
+                        }
+                    }
                 }
             )
 

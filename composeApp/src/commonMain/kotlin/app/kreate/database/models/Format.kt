@@ -1,10 +1,10 @@
-package it.fast4x.rimusic.models
+package app.kreate.database.models
 
 import androidx.compose.runtime.Immutable
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
+
 
 @Immutable
 @Entity(
@@ -17,9 +17,12 @@ import androidx.room.PrimaryKey
         )
     ]
 )
-data class Event(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    @ColumnInfo(index = true) val songId: String,
-    var timestamp: Long,
-    val playTime: Long
+data class Format(
+    @PrimaryKey val songId: String,
+    val itag: Int? = null,
+    val mimeType: String? = null,
+    val bitrate: Long? = null,
+    val contentLength: Long? = null,
+    val lastModified: Long? = null,
+    val loudnessDb: Float? = null
 )
