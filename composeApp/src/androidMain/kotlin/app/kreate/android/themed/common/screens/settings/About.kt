@@ -1,5 +1,7 @@
 package app.kreate.android.themed.common.screens.settings
 
+import android.content.res.Resources
+import androidx.annotation.RawRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,15 +12,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonRestartableComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,7 +37,6 @@ import androidx.navigation.NavController
 import app.kreate.android.R
 import app.kreate.android.themed.common.component.settings.SettingComponents
 import app.kreate.android.themed.common.component.settings.SettingEntrySearch
-import app.kreate.android.themed.common.component.settings.about.Contributors
 import app.kreate.android.themed.common.component.settings.entry
 import app.kreate.android.themed.common.component.settings.header
 import it.fast4x.rimusic.colorPalette
@@ -44,7 +48,64 @@ import it.fast4x.rimusic.ui.components.navigation.header.TabToolBar
 import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.utils.getVersionName
 import it.fast4x.rimusic.utils.secondary
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import me.knighthat.component.settings.Contributor
+import me.knighthat.component.settings.Developer
+import me.knighthat.component.settings.Translator
 import me.knighthat.utils.Repository
+import me.knighthat.utils.Toaster
+import timber.log.Timber
+
+
+// Prevent this from being init until it's needed
+private val json: Json by lazy {
+    Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+private inline fun <reified T: Contributor> getContributors(resources: Resources, @RawRes raw: Int ): List<T> =
+    runCatching {
+        resources.openRawResource( raw )
+                 .use { inStream ->
+                     json.decodeFromStream<List<T>>( inStream )
+                 }
+    }.onFailure { err ->
+        Timber.tag( "About" ).e( err )
+        Toaster.e(
+            if( T::class == Developer::class )
+                R.string.error_failed_to_load_developers
+            else if( T::class == Translator::class )
+                R.string.error_failed_to_load_translators
+            else
+            R.string.error_unknown
+        )
+    }.getOrDefault( emptyList() )
+
+@NonRestartableComposable
+@Composable
+private fun RenderContributors( contributors: List<Contributor> ) =
+    LazyColumn(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Contributor.SM_ARRANGEMENT_SPACE,
+        contentPadding = PaddingValues(
+            horizontal = SettingComponents.HORIZONTAL_PADDING.dp,
+            vertical = 20.dp
+        ),
+        modifier = Modifier.fillMaxWidth()
+                           .heightIn( 150.dp, 300.dp )
+    ) {
+        items(
+            items = contributors,
+            key = System::identityHashCode
+        ) { contributor ->
+            contributor.Draw( Contributor.Values.default )
+        }
+    }
 
 @Composable
 fun About(
@@ -58,7 +119,6 @@ fun About(
     val search = remember {
         SettingEntrySearch( scrollState, R.string.about, R.drawable.person )
     }
-    val contributors = remember { Contributors(context) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -192,14 +252,28 @@ fun About(
                 )
             }
 
-            header( { "${contributors.translators.size} ${context.getString(R.string.translators)}" } )
+            val translators = getContributors<Translator>( context.resources, R.raw.translators )
+                .sortedBy( Translator::displayName )
+            header( { "${translators.size} ${context.getString(R.string.translators)}" } )
             entry( search, R.string.translators ) {
-                Contributors.Show( contributors.translators )
+                RenderContributors( translators )
             }
 
-            header( { "${contributors.developers.size} ${context.getString( R.string.about_developers_designers )}" } )
+            val result = getContributors<Developer>( context.resources, R.raw.contributors )
+                .sortedBy( Developer::contributions )
+                .reversed()
+                .toMutableList()
+            // If owner presents and not at the top of the list
+            // then remove it from current position and add it back to the top
+            val ownerIndex = result.indexOfFirst( Contributor::isOwner )
+            if( ownerIndex > 0 ) {
+                val owner = result.removeAt( ownerIndex )
+                result.add( 0, owner )
+            }
+            val developers = result.toList()
+            header( { "${developers.size} ${context.getString( R.string.about_developers_designers )}" } )
             entry( search, R.string.contributors ) {
-                Contributors.Show( contributors.developers )
+                RenderContributors( developers )
             }
         }
     }

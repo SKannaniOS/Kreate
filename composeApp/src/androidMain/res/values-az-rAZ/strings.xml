@@ -912,6 +912,7 @@
     <string name="error_failed_to_sync_tab">Failed to sync %s</string>
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 =======
     <string name="warning_num_songs_exlucded_because_duration_limit">%s excluded because their duration exceed duration limit</string>
@@ -920,5 +921,9 @@
     <string name="warning_nothing_to_shuffle">Nothing to shuffle</string>
 >>>>>>> upstream/main
 =======
+>>>>>>> upstream/main
+=======
+    <string name="error_failed_to_load_developers">Failed to load developers</string>
+    <string name="error_failed_to_load_translators">Failed to load translators</string>
 >>>>>>> upstream/main
 </resources>
