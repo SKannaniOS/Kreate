@@ -2,11 +2,28 @@ import com.android.build.gradle.internal.api.BaseVariantOutputImpl
 import com.github.jk1.license.filter.DependencyFilter
 import com.github.jk1.license.filter.ExcludeTransitiveDependenciesFilter
 import com.github.jk1.license.render.JsonReportRenderer
-import org.gradle.internal.extensions.stdlib.capitalized
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
 
 val APP_NAME = "Kreate"
+val VERSION_CODE = 124
+
+private fun String.sha256(): String {
+    val digest = MessageDigest.getInstance( "SHA-256" )
+    val hashBytes = digest.digest( this.toByteArray() )
+
+    return hashBytes.joinToString("") { b -> "%02x".format(b) }
+}
+
+// Please DO NOT change this, it's intended to differentiate between
+// knighthat/Kreate's build env and others' build env.
+// Only official build env has passwords and keystore to sign the APK
+// Other build environments can have unsigned version instead
+val officialBuildPhrase: String? = System.getenv( "OFFICIAL_BUILD_PASSPHRASE" )
+val isOfficialBuildEnv = !officialBuildPhrase.isNullOrBlank() && officialBuildPhrase.sha256() == "b2c778240e03b2005d23899aa02e51de049223a54d549d082e89dc20e51dd545"
 
 plugins {
     // Multiplatform
@@ -158,8 +175,6 @@ android {
         applicationId = "me.knighthat.kreate"
         minSdk = 21
         targetSdk = 36
-        versionCode = 124
-        versionName = "1.8.4"
 
         /*
                 UNIVERSAL VARIABLES
@@ -167,14 +182,22 @@ android {
         buildConfigField( "String", "APP_NAME", "\"$APP_NAME\"" )
     }
 
-    splits {
-        abi {
-            reset()
-            isUniversalApk = true
+    namespace = "app.kreate.android"
+
+    signingConfigs {
+        create( "production" ) {
+            storeFile = file("$rootDir/.ignore.d/keystores/production.jks")
+            keyAlias = "kreate"
+            storePassword = System.getenv( "STORE_PASSWORD" )
+            keyPassword = System.getenv( "KEY_PASSWORD" )
+        }
+        create( "nightly" ) {
+            storeFile = file("$rootDir/.ignore.d/keystores/nightly.jks")
+            keyAlias = "nightly"
+            storePassword = System.getenv( "STORE_PASSWORD" )
+            keyPassword = System.getenv( "KEY_PASSWORD" )
         }
     }
-
-    namespace = "app.kreate.android"
 
     buildTypes {
         debug {
@@ -210,63 +233,124 @@ android {
             // App's properties
             versionNameSuffix = "-f"
         }
-
-        /**
-         * For convenience only.
-         * "Forkers" want to change app name across builds
-         * just need to change this variable
-         */
-        forEach {
-            it.manifestPlaceholders.putIfAbsent( "appName", APP_NAME )
-        }
     }
 
-    flavorDimensions += listOf( "prod" )
+    flavorDimensions += listOf( "platform", "arch", "env" )
     productFlavors {
+        //<editor-fold desc="Platforms">
         create("github") {
-            dimension = "prod"
+            dimension = "platform"
 
             isDefault = true
         }
-
         create( "fdroid" ) {
-            dimension = "prod"
+            dimension = "platform"
 
             // App's properties
             versionNameSuffix = "-fdroid"
         }
-
         create( "izzy" ) {
-            dimension = "prod"
+            dimension = "platform"
 
             // App's properties
             versionNameSuffix = "-izzy"
         }
+        //</editor-fold>
+        //<editor-fold desc="Architectures">
+        create("universal") {
+            dimension = "arch"
+
+            isDefault = true
+
+            // Build architecture
+            buildConfigField( "String", "ARCH", "\"$name\"" )
+        }
+        create("arm64") {
+            dimension = "arch"
+
+            // Build architecture
+            ndk { abiFilters += "arm64-v8a" }
+            buildConfigField( "String", "ARCH", "\"$name\"" )
+        }
+        create("arm32") {
+            dimension = "arch"
+            ndk { abiFilters += "armeabi-v7a" }
+            buildConfigField( "String", "ARCH", "\"$name\"" )
+        }
+        create("x86") {
+            dimension = "arch"
+
+            ndk { abiFilters += "x86" }
+            buildConfigField( "String", "ARCH", "\"$name\"" )
+        }
+        create("x86_64") {
+            dimension = "arch"
+
+            // Build architecture
+            ndk { abiFilters += "x86_64" }
+            buildConfigField( "String", "ARCH", "\"$name\" ")
+        }
+        //</editor-fold>
+        //<editor-fold desc="Environment">
+        create( "nightly" ) {
+            dimension = "env"
+
+            // Signing config
+            signingConfig = signingConfigs.getByName( "nightly" )
+
+            val longFormat = SimpleDateFormat("yyyy.MM.dd")
+            val shortFormat = SimpleDateFormat("yyMMdd")
+
+            // App's properties
+            applicationIdSuffix = ".nightly"
+            versionName = longFormat.format (Date() )
+            manifestPlaceholders["appName"] = "Nightly"
+            // The idea is to combine build date and current version code together
+            versionCode = "${shortFormat.format( Date() )}$VERSION_CODE".toInt()
+        }
+        create( "prod" ) {
+            dimension = "env"
+
+            isDefault = true
+
+            if( isOfficialBuildEnv )
+                // Singing config
+                signingConfig = signingConfigs.getByName( "production" )
+
+            // App's properties
+            versionName = "1.8.4"
+            manifestPlaceholders["appName"] = APP_NAME
+            versionCode = VERSION_CODE
+        }
+        //</editor-fold>
     }
 
     applicationVariants.all {
         outputs.map { it as BaseVariantOutputImpl }
                .forEach {
-                   val suffix = if( flavorName == "izzy" ) "izzy" else buildType.name
+                   val suffix = if( "izzy" in flavorName )
+                       "izzy"
+                   else if( "Nightly" in flavorName )
+                       "nightly"
+                   // The next 4 conditions set the APK name to the architect
+                   // if it's intended for release build
+                   else if( "Arm64" in flavorName && buildType.name == "release" )
+                       "arm64-v8a"
+                   else if( "Arm32" in flavorName && buildType.name == "release" )
+                       "armeabi-v7a"
+                   else if( "X86_64" in flavorName && buildType.name == "release" )
+                       "x86_64"
+                   else if( "X86" in flavorName && buildType.name == "release" )
+                       "x86"
+                   // Or just append build type at the end of the APK file name
+                   else
+                       buildType.name
+
                    it.outputFileName = "$APP_NAME-${suffix}.apk"
                }
 
         if( buildType.name != "debug" ) {
-            val capitalizedFlavorName = "${flavorName.capitalized()}${buildType.name.capitalized()}"
-
-            tasks.register<Copy>("copyReleaseNoteTo${capitalizedFlavorName}Res" ) {
-                from( "$rootDir/fastlane/metadata/android/en-US/changelogs" )
-                val fileName = "${android.defaultConfig.versionCode!!}.txt"
-                setIncludes( listOf( fileName ) )
-
-                into( "$rootDir/composeApp/src/android$capitalizedFlavorName/res/raw" )
-
-                rename {
-                    if( it == fileName ) "release_notes.txt" else it
-                }
-            }
-
-            preBuildProvider.get().dependsOn( "copyReleaseNoteTo${capitalizedFlavorName}Res" )
+            preBuildProvider.get().dependsOn( copyReleaseNote )
         }
     }
 
@@ -345,4 +429,17 @@ licenseReport {
     renderers = arrayOf( JsonReportRenderer() )
 
     filters = arrayOf<DependencyFilter>( ExcludeTransitiveDependenciesFilter() )
+}
+
+val copyReleaseNote = tasks.register<Copy>("copyReleaseNote" ) {
+    from( "$rootDir/fastlane/metadata/android/en-US/changelogs" )
+
+    val fileName = "$VERSION_CODE.txt"
+    setIncludes( listOf( fileName ) )
+
+    into( "$rootDir/composeApp/src/androidMain/res/raw" )
+
+    rename {
+        if( it == fileName ) "release_notes.txt" else it
+    }
 }
