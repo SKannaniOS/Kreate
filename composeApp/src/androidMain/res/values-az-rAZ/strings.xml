@@ -925,5 +925,9 @@
 =======
     <string name="error_failed_to_load_developers">Failed to load developers</string>
     <string name="error_failed_to_load_translators">Failed to load translators</string>
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+    <string name="error_check_for_updates_failed">Check for updates failed</string>
 >>>>>>> upstream/main
 </resources>
