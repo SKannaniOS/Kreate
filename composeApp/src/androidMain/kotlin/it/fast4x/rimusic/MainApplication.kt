@@ -7,6 +7,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import androidx.compose.runtime.getValue
 import androidx.core.content.getSystemService
+import androidx.lifecycle.ProcessLifecycleOwner
 import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
 import app.kreate.android.coil3.ImageFactory
@@ -17,9 +18,13 @@ import app.kreate.android.utils.logging.RollingFileLoggingTree
 <<<<<<< HEAD
 <<<<<<< HEAD
 import dagger.hilt.android.HiltAndroidApp
+<<<<<<< HEAD
 =======
 =======
 import dagger.hilt.android.HiltAndroidApp
+>>>>>>> upstream/main
+=======
+import it.fast4x.rimusic.utils.AppLifecycleTracker
 >>>>>>> upstream/main
 import me.knighthat.innertube.Innertube
 >>>>>>> upstream/main
@@ -66,6 +71,8 @@ class MainApplication : Application() {
                                                                .build()
             registerNetworkCallback( networkRequest, ConnectivityUtils )
         }
+        // Register app lifecycle tracker
+        ProcessLifecycleOwner.get().lifecycle.addObserver(AppLifecycleTracker)
     }
 
     override fun onTerminate() {
