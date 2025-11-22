@@ -238,7 +238,7 @@ class MediaLibrarySessionCallback(
                         "${PlayerServiceModern.ALBUM}/${album.id}",
                         album.title ?: "",
                         album.authorsText,
-                        album.thumbnailUrl?.toUri(),
+                        album.cleanThumbnailUrl()?.toUri(),
                         MediaMetadata.MEDIA_TYPE_ALBUM
                     )
                 }
@@ -541,7 +541,7 @@ class MediaLibrarySessionCallback(
                     .setTitle(cleanTitle())
                     .setSubtitle(cleanArtistsText())
                     .setArtist(cleanArtistsText())
-                    .setArtworkUri(thumbnailUrl?.toUri())
+                    .setArtworkUri(cleanThumbnailUrl()?.toUri())
                     .setIsPlayable(true)
                     .setIsBrowsable(false)
                     .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
