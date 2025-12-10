@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.provider.MediaStore
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.util.fastFilter
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -27,7 +26,6 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import app.kreate.android.Preferences
 import app.kreate.android.R
-import app.kreate.android.di.PlayerModule.upsertSongFormat
 import app.kreate.android.di.PlayerModule.upsertSongInfo
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -39,33 +37,22 @@ import app.kreate.android.service.Discord
 >>>>>>> upstream/main
 import app.kreate.android.service.NetworkService
 import app.kreate.android.service.player.CustomExoPlayer
+<<<<<<< HEAD
 >>>>>>> upstream/main
 import app.kreate.android.utils.CharUtils
 import app.kreate.android.utils.ConnectivityUtils
+=======
+import app.kreate.android.utils.YTPlayerUtils
+>>>>>>> upstream/main
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.isLocalFile
-import app.kreate.database.models.Format
 import app.kreate.util.LOCAL_KEY_PREFIX
-import com.grack.nanojson.JsonObject
-import com.grack.nanojson.JsonWriter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import io.ktor.client.plugins.expectSuccess
-import io.ktor.client.request.head
-import io.ktor.http.URLBuilder
-import io.ktor.http.parseQueryString
-import io.ktor.util.collections.ConcurrentMap
-import io.ktor.util.network.UnresolvedAddressException
 import it.fast4x.rimusic.Database
-import it.fast4x.rimusic.enums.AudioQualityFormat
-import it.fast4x.rimusic.service.LoginRequiredException
-import it.fast4x.rimusic.service.MissingDecipherKeyException
-import it.fast4x.rimusic.service.NoInternetException
-import it.fast4x.rimusic.service.PlayableFormatNotFoundException
-import it.fast4x.rimusic.service.UnplayableException
 import it.fast4x.rimusic.utils.isConnectionMetered
 import it.fast4x.rimusic.utils.isNetworkAvailable
 import kotlinx.coroutines.CoroutineScope
@@ -74,28 +61,22 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.MissingFieldException
-import kotlinx.serialization.json.Json
 import me.knighthat.innertube.Endpoints
 import me.knighthat.innertube.Innertube
 <<<<<<< HEAD
 =======
 import me.knighthat.innertube.UserAgents
+<<<<<<< HEAD
 >>>>>>> upstream/main
 import me.knighthat.innertube.response.PlayerResponse
+=======
+>>>>>>> upstream/main
 import me.knighthat.utils.Toaster
-import org.schabi.newpipe.extractor.localization.ContentCountry
-import org.schabi.newpipe.extractor.localization.Localization
-import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
-import org.schabi.newpipe.extractor.services.youtube.YoutubeStreamHelper
 import timber.log.Timber
-import java.net.UnknownHostException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.time.Duration.Companion.seconds
-import me.knighthat.innertube.request.body.Context as InnertubeContext
 
 
 @Module
@@ -128,6 +109,7 @@ object PlayerModule {
     private val cachedStreamUrl = mutableMapOf<String, StreamCache>()
 =======
     private val justInserted = AtomicReference("")
+<<<<<<< HEAD
     private val cachedStreamUrl = ConcurrentMap<String, StreamCache>()
 >>>>>>> upstream/main
     private val CONTEXTS = arrayOf(
@@ -145,6 +127,9 @@ object PlayerModule {
             useArrayPolymorphism = true
             explicitNulls = false
         }
+=======
+    private val songUrlCache = ConcurrentHashMap<String, Pair<String, Long>>()
+>>>>>>> upstream/main
 
 <<<<<<< HEAD
 =======
@@ -194,6 +179,7 @@ object PlayerModule {
         // Must not modify [JustInserted] to [upsertSongFormat] let execute later
     }
 
+<<<<<<< HEAD
     /**
      * Upsert provided format to the database
      */
@@ -427,6 +413,8 @@ object PlayerModule {
 =======
     //</editor-fold>
 
+=======
+>>>>>>> upstream/main
     //<editor-fold desc="Resolvers">
 <<<<<<< HEAD
 >>>>>>> upstream/main
@@ -442,35 +430,19 @@ object PlayerModule {
 
         Timber.tag( LOG_TAG ).v( "processing $videoId at quality $audioQualityFormat with connection metered: $connectionMetered" )
 
-        val cache: StreamCache
-        if( cachedStreamUrl.contains( videoId ) ) {
-            Timber.tag( LOG_TAG ).d( "Found $videoId in cachedStreamUrl" )
+        val response = YTPlayerUtils.playerResponseForPlayback(
+            videoId = videoId,
+            audioQuality = audioQualityFormat,
+            isNetworkMetered = connectionMetered
+        ).onFailure { err ->
+            Toaster.e( "failed to fetch playback stream" )
+            Timber.tag( LOG_TAG ).e( err )
+        }.getOrThrow()
 
-            cache = cachedStreamUrl[videoId]!!
+        val streamUrl = response.streamUrl
+        songUrlCache[videoId] = streamUrl to System.currentTimeMillis() + (response.streamExpiresInSeconds * 1000L)
 
-            // Handle expired url with 30secs offset
-            if( cache.expiredTimeMillis - 30.seconds.inWholeMilliseconds <= System.currentTimeMillis() ) {
-                Timber.tag( LOG_TAG ).d( "url for $videoId has expired!" )
-
-                cachedStreamUrl.remove( videoId )
-
-                return@runBlocking process( videoId, connectionMetered )
-            }
-        } else {
-            Timber.tag( LOG_TAG ).d( "url for $videoId isn't stored! Fetching new url" )
-
-            cachedStreamUrl[videoId] = getPlayerResponse( videoId, audioQualityFormat, connectionMetered )
-            cache = cachedStreamUrl[videoId]!!
-        }
-
-        val absolutePosition = uriPositionOffset + position
-        YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated( videoId, cache.playableUrl )
-                                      .toUri()
-                                      .buildUpon()
-                                      .appendQueryParameter( "range", "$absolutePosition-${cache.contentLength}" )
-                                      .appendQueryParameter( "cpn", cache.cpn )
-                                      .build()
-                                      .let( ::withUri )
+        withUri( streamUrl.toUri() ).subrange( uriPositionOffset, CHUNK_LENGTH )
     }
 
     /**
@@ -697,7 +669,7 @@ object PlayerModule {
      * @return `true` if song's url was cached, and is deleted, `false` otherwise.
      */
     fun clearCachedStreamUrlOf( songId: String ): Boolean =
-        cachedStreamUrl.remove( songId ) != null
+        songUrlCache.remove( songId ) != null
 
     private data class StreamCache(
         val cpn: String,
