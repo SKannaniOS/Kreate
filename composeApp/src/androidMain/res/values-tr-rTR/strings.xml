@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="done">Tamam</string>
     <string name="hidesong">Bu şarkıyı gerçekten gizlemek istiyor musunuz? Çalma süresi ve önbelleği silinecek. Bu işlem geri alınamaz.</string>
@@ -916,6 +916,7 @@
     <string name="error_failed_to_acquire_account_info">Hesap bilgisi alınamadı</string>
     <string name="error_failed_to_sync_tab">%s senkronize edilemedi</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <string name="warning_num_songs_exlucded_because_duration_limit">%s, süre sınırını aştığı için hariç tutuldu</string>
     <string name="warning_songs_duration_exceeds_limit">Seçilen şarkının süresi sınırı aşıyor</string>
     <string name="warning_no_valid_songs">Geçerli şarkı yok</string>
@@ -937,5 +938,21 @@
     <string name="error_failed_to_load_image">Failed to load image</string>
     <string name="error_invalid_path">Invalid path</string>
     <string name="description_validate_url">Validate url</string>
+>>>>>>> upstream/main
+=======
+    <string name="error_failed_to_load_developers">Geliştiriciler yüklenemedi</string>
+    <string name="error_failed_to_load_translators">Çevirmenler yüklenemedi</string>
+    <string name="error_check_for_updates_failed">Güncelleme kontrolü başarısız oldu</string>
+    <string name="settings_entry_live_wallpaper_reset_duration">Switch back after</string>
+    <string name="settings_description_live_wallpaper_reset_duration">How long to wait after music stopped playing to switch back to the regular wallpaper</string>
+    <string name="title_change_thumbnail">Küçük resmi değiştir</string>
+    <string name="description_change_thumbnail">Küçük resmi istediğiniz bir taneyle değiştirin</string>
+    <string name="description_select_from_device">Cihazdan seç</string>
+    <string name="error_failed_to_load_image">Resim yüklenemedi</string>
+    <string name="error_invalid_path">Geçersiz yol</string>
+    <string name="description_validate_url">URL\'yi doğrula</string>
+    <string name="disabled">disabled</string>
+    <string name="settings_live_wallpaper_reset_warning"> WARNING: this will switch back to your manufacturer’s default wallpaper. Unfortunately it is difficult to revert to your previous wallpaper</string>
+    <string name="ok">ok</string>
 >>>>>>> upstream/main
 </resources>

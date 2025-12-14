@@ -6,6 +6,8 @@ import android.content.SharedPreferences
 import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.core.net.toUri
+import androidx.media3.common.C
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -26,6 +28,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import app.kreate.android.Preferences
 import app.kreate.android.R
+import app.kreate.android.di.PlayerModule.MAX_CHUNK_LENGTH
 import app.kreate.android.di.PlayerModule.upsertSongInfo
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -52,7 +55,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.util.network.UnresolvedAddressException
 import it.fast4x.rimusic.Database
+import it.fast4x.rimusic.service.NoInternetException
+import it.fast4x.rimusic.service.UnknownException
 import it.fast4x.rimusic.utils.isConnectionMetered
 import it.fast4x.rimusic.utils.isNetworkAvailable
 import kotlinx.coroutines.CoroutineScope
@@ -73,6 +79,7 @@ import me.knighthat.innertube.response.PlayerResponse
 >>>>>>> upstream/main
 import me.knighthat.utils.Toaster
 import timber.log.Timber
+import java.net.UnknownHostException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Named
@@ -87,6 +94,7 @@ object PlayerModule {
 
     private const val LOG_TAG = "dataspec"
     private const val CHUNK_LENGTH = 128 * 1024L     // 128Kb
+    private const val MAX_CHUNK_LENGTH = 5L * 1024 * 1024       // 5 Mb
 
     /**
      * Acts as a lock to keep [upsertSongFormat] from starting before
@@ -100,11 +108,16 @@ object PlayerModule {
      */
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     @set:Synchronized
 =======
     @Volatile
 >>>>>>> upstream/main
     private var justInserted: String = ""
+=======
+    private val justInserted = AtomicReference("")
+    private val songUrlCache = ConcurrentHashMap<String, Triple<String, Long, Long?>>()
+>>>>>>> upstream/main
 
     private val cachedStreamUrl = mutableMapOf<String, StreamCache>()
 =======
@@ -179,6 +192,7 @@ object PlayerModule {
         // Must not modify [JustInserted] to [upsertSongFormat] let execute later
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     /**
      * Upsert provided format to the database
@@ -415,6 +429,21 @@ object PlayerModule {
 
 =======
 >>>>>>> upstream/main
+=======
+    /**
+     * Returns the length from [position] to [contentLength].
+     *
+     * If [contentLength] is a `null` value, use [C.LENGTH_UNSET]
+     * to get the rest of the data.
+     *
+     * Cap the maximum data to get to [MAX_CHUNK_LENGTH]
+     */
+    private fun calculateLength( position: Long, contentLength: Long? ): Long =
+        contentLength?.let { it - position }
+                     ?.coerceAtMost( MAX_CHUNK_LENGTH )
+                     ?: C.LENGTH_UNSET.toLong()
+
+>>>>>>> upstream/main
     //<editor-fold desc="Resolvers">
 <<<<<<< HEAD
 >>>>>>> upstream/main
@@ -430,19 +459,44 @@ object PlayerModule {
 
         Timber.tag( LOG_TAG ).v( "processing $videoId at quality $audioQualityFormat with connection metered: $connectionMetered" )
 
+        // Checking cached urls
+        if( songUrlCache.containsKey( videoId ) ) {
+            Timber.tag( LOG_TAG ).d( "cache hit" )
+
+            val (url, expire, length) = songUrlCache[videoId]!!
+            val currentTime = System.currentTimeMillis()
+            if( expire > currentTime ) {
+                val range = calculateLength( position, length )
+                return@runBlocking withUri( url.toUri() ).subrange( 0, range )
+            }
+        } else
+            Timber.tag( LOG_TAG ).d( "cache missed" )
+
         val response = YTPlayerUtils.playerResponseForPlayback(
             videoId = videoId,
             audioQuality = audioQualityFormat,
             isNetworkMetered = connectionMetered
-        ).onFailure { err ->
-            Toaster.e( "failed to fetch playback stream" )
+        ).getOrElse { err ->
             Timber.tag( LOG_TAG ).e( err )
-        }.getOrThrow()
+            Toaster.e( "failed to fetch playback stream" )
+
+            when( err ) {
+                is UnknownHostException,
+                is UnresolvedAddressException   -> throw NoInternetException(err)
+                is PlaybackException            -> throw err
+                else                            -> throw UnknownException()
+            }
+        }
 
         val streamUrl = response.streamUrl
-        songUrlCache[videoId] = streamUrl to System.currentTimeMillis() + (response.streamExpiresInSeconds * 1000L)
+        songUrlCache[videoId] = Triple(
+            streamUrl,
+            System.currentTimeMillis() + response.streamExpiresInSeconds * 1000L,
+            response.format.contentLength
+        )
 
-        withUri( streamUrl.toUri() ).subrange( uriPositionOffset, CHUNK_LENGTH )
+        val range = calculateLength( position, response.format.contentLength )
+        withUri( streamUrl.toUri() ).subrange( 0, range )
     }
 
     /**
