@@ -29,6 +29,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.di.PlayerModule.MAX_CHUNK_LENGTH
+import app.kreate.android.di.PlayerModule.upsertSongFormat
 import app.kreate.android.di.PlayerModule.upsertSongInfo
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -49,7 +50,9 @@ import app.kreate.android.utils.YTPlayerUtils
 >>>>>>> upstream/main
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.isLocalFile
+import app.kreate.database.models.Format
 import app.kreate.util.LOCAL_KEY_PREFIX
+import com.metrolist.innertube.models.response.PlayerResponse
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -431,6 +434,41 @@ object PlayerModule {
 >>>>>>> upstream/main
 =======
     /**
+     * Upsert provided format to the database
+     */
+    private fun upsertSongFormat( videoId: String, format: PlayerResponse.StreamingData.Format ) {
+        // Skip adding if it's just added in previous call
+        if( videoId == justInserted.get() ) return
+
+        Timber.tag( LOG_TAG ).v( "upserting format ${format.itag} of song $videoId to the database" )
+
+        CoroutineScope(Dispatchers.IO ).launch {
+            // Wait until this job is finish to make sure song's info
+            // is in the database before continuing
+            databaseWorker.join()
+
+            Database.asyncTransaction {
+                formatTable.upsert(
+                    Format(
+                        videoId,
+                        format.itag,
+                        format.mimeType,
+                        format.bitrate.toLong(),
+                        format.contentLength,
+                        format.lastModified,
+                        format.loudnessDb?.toFloat()
+                    )
+                )
+
+                Timber.tag( LOG_TAG ).d( "$videoId is successfully upserted to the database" )
+
+                // Format must be added successfully before setting variable
+                justInserted.set( videoId )
+            }
+        }
+    }
+
+    /**
      * Returns the length from [position] to [contentLength].
      *
      * If [contentLength] is a `null` value, use [C.LENGTH_UNSET]
@@ -476,7 +514,9 @@ object PlayerModule {
             videoId = videoId,
             audioQuality = audioQualityFormat,
             isNetworkMetered = connectionMetered
-        ).getOrElse { err ->
+        ).onSuccess { res ->
+            upsertSongFormat( videoId, res.format )
+        }.getOrElse { err ->
             Timber.tag( LOG_TAG ).e( err )
             Toaster.e( "failed to fetch playback stream" )
 
