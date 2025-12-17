@@ -36,6 +36,9 @@ import javax.inject.Named
 class MainApplication : Application() {
 
     @Inject
+    @Named("profiles")
+    lateinit var profilePreferences: SharedPreferences
+    @Inject
     @Named("plain")
     lateinit var preferences: SharedPreferences
     @Inject
@@ -45,7 +48,7 @@ class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        Preferences.load( preferences, encryptedPreferences )
+        Preferences.load(profilePreferences, preferences, encryptedPreferences )
 
         //DatabaseInitializer()
         Dependencies.init(this)
