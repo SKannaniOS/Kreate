@@ -28,7 +28,6 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import app.kreate.android.Preferences
 import app.kreate.android.R
-import app.kreate.android.di.PlayerModule.MAX_CHUNK_LENGTH
 import app.kreate.android.di.PlayerModule.upsertSongFormat
 import app.kreate.android.di.PlayerModule.upsertSongInfo
 <<<<<<< HEAD
@@ -97,7 +96,6 @@ object PlayerModule {
 
     private const val LOG_TAG = "dataspec"
     private const val CHUNK_LENGTH = 128 * 1024L     // 128Kb
-    private const val MAX_CHUNK_LENGTH = 5L * 1024 * 1024       // 5 Mb
 
     /**
      * Acts as a lock to keep [upsertSongFormat] from starting before
@@ -473,12 +471,9 @@ object PlayerModule {
      *
      * If [contentLength] is a `null` value, use [C.LENGTH_UNSET]
      * to get the rest of the data.
-     *
-     * Cap the maximum data to get to [MAX_CHUNK_LENGTH]
      */
     private fun calculateLength( position: Long, contentLength: Long? ): Long =
         contentLength?.let { it - position }
-                     ?.coerceAtMost( MAX_CHUNK_LENGTH )
                      ?: C.LENGTH_UNSET.toLong()
 
 >>>>>>> upstream/main
