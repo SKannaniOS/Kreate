@@ -2,7 +2,6 @@ package app.kreate.android.di
 
 import android.content.ContentUris
 import android.content.Context
-import android.content.SharedPreferences
 import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.core.net.toUri
@@ -21,15 +20,19 @@ import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERR
 =======
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 import androidx.media3.exoplayer.DefaultRenderersFactory
 =======
 >>>>>>> upstream/main
 import androidx.media3.exoplayer.ExoPlayer
+=======
+>>>>>>> upstream/main
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.di.PlayerModule.upsertSongFormat
 import app.kreate.android.di.PlayerModule.upsertSongInfo
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 import app.kreate.android.service.KtorHttpDatasource
@@ -45,6 +48,9 @@ import app.kreate.android.service.player.CustomExoPlayer
 import app.kreate.android.utils.CharUtils
 import app.kreate.android.utils.ConnectivityUtils
 =======
+=======
+import app.kreate.android.service.NetworkService
+>>>>>>> upstream/main
 import app.kreate.android.utils.YTPlayerUtils
 >>>>>>> upstream/main
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
@@ -672,6 +678,7 @@ object PlayerModule {
     //</editor-fold>
 >>>>>>> upstream/main
 
+<<<<<<< HEAD
     @Provides
     @Singleton
     fun providesExoPlayer(
@@ -752,6 +759,8 @@ object PlayerModule {
     ): ExoPlayer = CustomExoPlayer(dataSourceFactory, preferences, context, discord)
 >>>>>>> upstream/main
 
+=======
+>>>>>>> upstream/main
     /**
      * Remove cached url of [songId].
      *
