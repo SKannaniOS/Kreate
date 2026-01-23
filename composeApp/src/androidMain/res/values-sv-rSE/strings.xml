@@ -910,5 +910,9 @@
     <string name="error_failed_to_load_image">Failed to load image</string>
     <string name="error_invalid_path">Invalid path</string>
     <string name="description_validate_url">Validate url</string>
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+    <string name="setting_entry_thumbnail_size">Thumbnail size</string>
 >>>>>>> upstream/main
 </resources>

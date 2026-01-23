@@ -10,6 +10,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -107,7 +108,6 @@ import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
 import it.fast4x.rimusic.ui.styling.onOverlay
 import it.fast4x.rimusic.ui.styling.overlay
-import it.fast4x.rimusic.ui.styling.px
 import it.fast4x.rimusic.utils.DeletePlaylist
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
@@ -306,7 +306,7 @@ fun LocalPlaylistSongs(
     }
     val resetThumbnail = ResetThumbnail { resetThumbnail() }
 
-    val locator = Locator( lazyListState, ::getSongs )
+    val locator = Locator( lazyListState, ::getSongs, 3 )
 
     //<editor-fold defaultstate="collapsed" desc="Smart recommendation">
     val recommendationsNumber by Preferences.MAX_NUMBER_OF_SMART_RECOMMENDATIONS
@@ -443,9 +443,6 @@ fun LocalPlaylistSongs(
     downloadAllDialog.Render()
     deleteDownloadsDialog.Render()
 
-    val playlistThumbnailSizeDp = Dimensions.thumbnails.playlist
-    val playlistThumbnailSizePx = playlistThumbnailSizeDp.px
-
     val rippleIndication = ripple(bounded = false)
 
     val playlistNotMonthlyType =
@@ -471,12 +468,9 @@ fun LocalPlaylistSongs(
         //LookaheadScope {
         LazyColumn(
             state = reorderingState.lazyListState,
-            //contentPadding = LocalPlayerAwareWindowInsets.current
-            //    .only(WindowInsetsSides.Vertical + WindowInsetsSides.End)
-            //    .asPaddingValues(),
-            modifier = Modifier
-                .background(colorPalette().background0)
-                .fillMaxSize()
+            contentPadding = PaddingValues(bottom = Dimensions.bottomSpacer),
+            verticalArrangement = Arrangement.spacedBy( 5.dp ),
+            modifier = Modifier.fillMaxSize()
         ) {
             item(
                 key = "header",
@@ -485,8 +479,7 @@ fun LocalPlaylistSongs(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                 ) {
 
                     HeaderWithIcon(
@@ -494,8 +487,7 @@ fun LocalPlaylistSongs(
                         iconId = R.drawable.playlist,
                         enabled = true,
                         showIcon = false,
-                        modifier = Modifier
-                            .padding(bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp),
                         onClick = {}
                     )
 
@@ -504,19 +496,16 @@ fun LocalPlaylistSongs(
                 Row(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        //.background(colorPalette().background4)
-                        .fillMaxSize(0.99F)
-                        .background(
-                            color = colorPalette().background1,
-                            shape = thumbnailRoundness.shape
-                        )
+                    modifier = Modifier.fillMaxSize( 0.99F )
+                                       .background(
+                                           color = colorPalette().background1,
+                                           shape = thumbnailRoundness.shape
+                                       )
                 ) {
 
                     playlist?.let {
                         PlaylistItem.Thumbnail(
                             playlist = it,
-                            sizeDp = playlistThumbnailSizeDp,
                             modifier = Modifier.padding( all = 14.dp ),
                             showPlatformIcon = false
                         )
@@ -583,8 +572,11 @@ fun LocalPlaylistSongs(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                if ( autosync && playlist?.browseId.isNullOrBlank() )
+                    sync()
+            }
 
+            stickyHeader( "action_buttons" ) {
                 TabToolBar.Buttons(
                     mutableListOf<Button>().apply {
                         if (playlistNotMonthlyType)
@@ -610,24 +602,19 @@ fun LocalPlaylistSongs(
                         this.add( thumbnailPicker )
                         this.add( resetThumbnail )
                         this.add( resetCache )
-                    }
+                    },
+                    modifier = Modifier.background( colorPalette.background0 )
+                                       .zIndex( 3f )       // SongItem has zIndex of 2f
                 )
+            }
 
-                if ( autosync && playlist?.browseId.isNullOrBlank() ) {
-                    sync()
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                /*        */
+            item( "sort_section" ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp)
-                        .fillMaxWidth()
+                    modifier = Modifier.padding( horizontal = 10.dp )
+                                       .fillMaxWidth()
                 ) {
-
                     sort.ToolBarButton()
 
                     Row(
@@ -635,7 +622,6 @@ fun LocalPlaylistSongs(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) { locator.ToolBarButton() }
-
                 }
 
                 search.SearchBar()
@@ -781,13 +767,6 @@ fun LocalPlaylistSongs(
                     }
                 }
 
-            }
-
-            item(
-                key = "footer",
-                contentType = 0,
-            ) {
-                Spacer(modifier = Modifier.height(Dimensions.bottomSpacer))
             }
         }
 
