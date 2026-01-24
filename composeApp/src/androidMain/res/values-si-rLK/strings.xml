@@ -920,5 +920,9 @@ CC-BY-SA 3.0</string>
 >>>>>>> upstream/main
 =======
     <string name="setting_entry_thumbnail_size">Thumbnail size</string>
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+    <string name="warning_end_of_list">End of list</string>
 >>>>>>> upstream/main
 </resources>
