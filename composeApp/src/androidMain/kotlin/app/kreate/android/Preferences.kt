@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import app.kreate.android.enums.DohServer
 import app.kreate.android.enums.PlatformIndicatorType
 import app.kreate.android.utils.innertube.getSystemCountryCode
 import app.kreate.constant.Language
@@ -709,6 +710,11 @@ sealed class Preferences<T>(
             Int( preferences, "ProxyPort", "proxyPort", 1080 )
         }
         //</editor-fold>
+        //<editor-fold defaultstate="collapsed" desc="DoH">
+        val DOH_SERVER by lazy {
+            Enum(preferences, "DnsOverHttpsServer", "", DohServer.NONE)
+        }
+        //</editor-fold>
         //<editor-fold defaultstate="collapsed" desc="Custom light colors">
         val CUSTOM_LIGHT_THEME_BACKGROUND_0 by lazy {
             Color(preferences, "CustomLightThemeBackground0", "customThemeLight_Background0", DefaultLightColorPalette.background0)
@@ -1079,6 +1085,9 @@ sealed class Preferences<T>(
         }
         val ACTIVE_PROFILE by lazy {
             String(profilePreferences, "ActiveProfile", "", "default")
+        }
+        val QUEUE_JUMP_TO_PLAYING_SONG by lazy {
+            Boolean(preferences, "QueueJumpToPlayingSong", "", true)
         }
 
         fun isLoggedInToDiscord(): kotlin.Boolean =
