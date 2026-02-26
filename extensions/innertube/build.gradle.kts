@@ -12,7 +12,7 @@ sourceSets.all {
 dependencies {
     implementation( libs.bundles.ktor )
     implementation(libs.okhttp3.logging.interceptor)
-    implementation(libs.extractor)
+    implementation(libs.newpipe.extractor)
     implementation(libs.ksoup.html)
     implementation(libs.ksoup.entities)
 }

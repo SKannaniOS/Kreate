@@ -89,8 +89,6 @@ import app.kreate.android.widget.Widget
 import app.kreate.database.models.Event
 import app.kreate.database.models.Song
 import com.google.common.util.concurrent.MoreExecutors
-import com.metrolist.innertube.InnerTube
-import com.metrolist.innertube.pages.NewPipeUtils
 import dagger.hilt.android.AndroidEntryPoint
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.NavigationEndpoint
@@ -303,8 +301,6 @@ class PlayerServiceModern:
 
     @kotlin.OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     override fun onCreate() {
-        NewPipeUtils.client = NetworkService.engine
-        InnerTube.httpClient = NetworkService.client
         Innertube.client = NetworkService.client
 
         super.onCreate()

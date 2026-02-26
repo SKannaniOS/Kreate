@@ -8,6 +8,10 @@ pluginManagement {
     }
 }
 
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
 dependencyResolutionManagement {
     repositories {
         google()
@@ -31,5 +35,3 @@ include(":innertube")
 project(":innertube").projectDir = file("modules/innertube")
 include("discord")
 project(":discord").projectDir = file("modules/discord")
-include(":metrolist")
-project(":metrolist").projectDir = file("modules/metrolist-innertube")
