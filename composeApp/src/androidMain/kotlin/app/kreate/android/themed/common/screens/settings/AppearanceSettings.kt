@@ -130,14 +130,6 @@ fun AppearanceSettings(paddingValues: PaddingValues) {
                     }
                 )
             }
-
-            header( R.string.setting_header_queue )
-            entry( search, R.string.setting_entry_jump_to_playing_song ) {
-                SettingComponents.BooleanEntry(
-                    preference = Preferences.QUEUE_JUMP_TO_PLAYING_SONG,
-                    title = stringResource( R.string.setting_entry_jump_to_playing_song )
-                )
-            }
         }
     }
     if (wallpaperResetAlertVisible.value){
@@ -157,6 +149,5 @@ fun AppearanceSettings(paddingValues: PaddingValues) {
                 }
             }
         }
-
     }
 }

@@ -1,7 +1,7 @@
 
 [versions]
-version-code = "129"
-version-name = "1.9.3"
+version-code = "130"
+version-name = "2.0.0"
 
 agp = "8.13.2"
 kotlin = "2.3.0"
