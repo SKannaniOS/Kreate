@@ -90,8 +90,8 @@ import app.kreate.android.widget.Widget
 import app.kreate.database.models.Event
 import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
+import app.kreate.di.CacheType
 import com.google.common.util.concurrent.MoreExecutors
-import dagger.hilt.android.AndroidEntryPoint
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.NavigationEndpoint
 import it.fast4x.rimusic.Database
@@ -154,17 +154,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import me.knighthat.impl.DownloadHelperImpl
 import me.knighthat.innertube.model.InnertubeSong
 import me.knighthat.utils.Toaster
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Named
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.seconds
@@ -174,7 +173,6 @@ import me.knighthat.innertube.Innertube as NewInnertube
 
 val MediaItem.isLocal get() = localConfiguration?.uri?.isLocalFile() ?: false
 
-@AndroidEntryPoint
 @UnstableApi
 class PlayerServiceModern:
     MediaLibraryService(),
@@ -189,8 +187,10 @@ class PlayerServiceModern:
     @Inject lateinit var player: ExoPlayer
 =======
     SharedPreferences.OnSharedPreferenceChangeListener,
-    Player.Listener
+    Player.Listener,
+    KoinComponent
 {
+<<<<<<< HEAD
     @Inject
     lateinit var player: CustomExoPlayer
 
@@ -205,6 +205,13 @@ class PlayerServiceModern:
 
     @Inject
     lateinit var volumeObserver: VolumeObserver
+>>>>>>> upstream/main
+=======
+    private val cache: Cache by inject(CacheType.CACHE)
+    private val discord: Discord by inject()
+    private val player: CustomExoPlayer by inject()
+    private val downloadHelper: DownloadHelper by inject()
+    private val volumeObserver: VolumeObserver by inject()
 >>>>>>> upstream/main
 
     private lateinit var listener: ExoPlayerListener
@@ -850,7 +857,7 @@ class PlayerServiceModern:
         if ( !Preferences.ENABLE_PERSISTENT_QUEUE.value ) return
 
         CoroutineScope(Dispatchers.IO).launch {
-            val queue = Database.queueTable.allBlocking()
+            val queue = Database.queueTable.blockingItems()
 
             if( queue.isEmpty() ) {
                 Timber.tag( "PersistentQueue" ).i( "Persistent queue empty, not resuming!" )
@@ -925,7 +932,7 @@ class PlayerServiceModern:
         }
     }
 
-    open inner class Binder : AndroidBinder() {
+    open inner class Binder : AndroidBinder(), KoinComponent {
         val service: PlayerServiceModern
             get() = this@PlayerServiceModern
 
@@ -945,8 +952,7 @@ class PlayerServiceModern:
         val cache: Cache
             get() = this@PlayerServiceModern.cache
 
-        val downloadCache: Cache
-            get() = (this@PlayerServiceModern.downloadHelper as DownloadHelperImpl).downloadCache
+        val downloadCache: Cache by inject(CacheType.DOWNLOAD)
 
         val sleepTimerMillisLeft: StateFlow<Long?>?
             get() = timerJob?.millisLeft

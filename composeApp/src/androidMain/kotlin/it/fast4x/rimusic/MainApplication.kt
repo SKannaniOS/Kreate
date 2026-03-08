@@ -1,7 +1,6 @@
 package it.fast4x.rimusic
 
 import android.app.Application
-import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
@@ -17,6 +16,7 @@ import app.kreate.android.utils.CrashHandler
 import app.kreate.android.utils.logging.RollingFileLoggingTree
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import dagger.hilt.android.HiltAndroidApp
 <<<<<<< HEAD
 =======
@@ -24,31 +24,28 @@ import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.android.HiltAndroidApp
 >>>>>>> upstream/main
 =======
+=======
+import app.kreate.di.initKoin
+>>>>>>> upstream/main
 import it.fast4x.rimusic.utils.AppLifecycleTracker
 >>>>>>> upstream/main
 import me.knighthat.innertube.Innertube
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+import org.koin.android.ext.koin.androidContext
 >>>>>>> upstream/main
 import timber.log.Timber
-import javax.inject.Inject
-import javax.inject.Named
 
-@HiltAndroidApp
+
 class MainApplication : Application() {
-
-    @Inject
-    @Named("profiles")
-    lateinit var profilePreferences: SharedPreferences
-    @Inject
-    @Named("plain")
-    lateinit var preferences: SharedPreferences
-    @Inject
-    @Named("private")
-    lateinit var encryptedPreferences: SharedPreferences
 
     override fun onCreate() {
         super.onCreate()
 
-        Preferences.load(profilePreferences, preferences, encryptedPreferences )
+        initKoin {
+            androidContext( this@MainApplication )
+        }
 
         //DatabaseInitializer()
         Dependencies.init(this)

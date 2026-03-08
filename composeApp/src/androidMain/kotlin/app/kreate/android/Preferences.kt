@@ -15,13 +15,18 @@ import androidx.core.content.edit
 import app.kreate.android.enums.DohServer
 import app.kreate.android.enums.PlatformIndicatorType
 import app.kreate.android.utils.innertube.getSystemCountryCode
+import app.kreate.constant.AlbumSortBy
+import app.kreate.constant.ArtistSortBy
 import app.kreate.constant.Language
+import app.kreate.constant.PlaylistSongSortBy
+import app.kreate.constant.PlaylistSortBy
+import app.kreate.constant.SongSortBy
+import app.kreate.constant.SortOrder
+import app.kreate.di.PrefType
 import it.fast4x.rimusic.appContext
-import it.fast4x.rimusic.enums.AlbumSortBy
 import it.fast4x.rimusic.enums.AlbumSwipeAction
 import it.fast4x.rimusic.enums.AlbumsType
 import it.fast4x.rimusic.enums.AnimatedGradient
-import it.fast4x.rimusic.enums.ArtistSortBy
 import it.fast4x.rimusic.enums.ArtistsType
 import it.fast4x.rimusic.enums.AudioQualityFormat
 import it.fast4x.rimusic.enums.BackgroundProgress
@@ -68,8 +73,6 @@ import it.fast4x.rimusic.enums.PlayerThumbnailSize
 import it.fast4x.rimusic.enums.PlayerTimelineSize
 import it.fast4x.rimusic.enums.PlayerTimelineType
 import it.fast4x.rimusic.enums.PlayerType
-import it.fast4x.rimusic.enums.PlaylistSongSortBy
-import it.fast4x.rimusic.enums.PlaylistSortBy
 import it.fast4x.rimusic.enums.PlaylistSwipeAction
 import it.fast4x.rimusic.enums.PlaylistsType
 import it.fast4x.rimusic.enums.PresetsReverb
@@ -78,9 +81,7 @@ import it.fast4x.rimusic.enums.QueueSwipeAction
 import it.fast4x.rimusic.enums.QueueType
 import it.fast4x.rimusic.enums.RecommendationsNumber
 import it.fast4x.rimusic.enums.Romanization
-import it.fast4x.rimusic.enums.SongSortBy
 import it.fast4x.rimusic.enums.SongsNumber
-import it.fast4x.rimusic.enums.SortOrder
 import it.fast4x.rimusic.enums.StatisticsCategory
 import it.fast4x.rimusic.enums.StatisticsType
 import it.fast4x.rimusic.enums.SwipeAnimationNoThumbnail
@@ -96,6 +97,8 @@ import it.fast4x.rimusic.utils.getDeviceVolume
 import me.knighthat.innertube.Constants
 import org.jetbrains.annotations.Blocking
 import org.jetbrains.annotations.NonBlocking
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.net.Proxy
 
 /**
@@ -129,14 +132,11 @@ sealed class Preferences<T>(
      * is first called, it'll remain uninitialized, no computation power, nor
      * memory will be consumed.
      */
-    companion object {
+    companion object : KoinComponent {
 
-        lateinit var profilePreferences: SharedPreferences
-            private set
-        lateinit var preferences: SharedPreferences
-            private set
-        lateinit var encryptedPreferences: SharedPreferences
-            private set
+        val profilePreferences: SharedPreferences by inject<SharedPreferences>(PrefType.PROFILES)
+        val preferences: SharedPreferences by inject<SharedPreferences>(PrefType.DEFAULT)
+        val encryptedPreferences: SharedPreferences by inject<SharedPreferences>(PrefType.CREDENTIALS)
 
         //<editor-fold defaultstate="collapsed" desc="Item size">
         val HOME_ARTIST_ITEM_SIZE by lazy {
@@ -163,39 +163,39 @@ sealed class Preferences<T>(
         //</editor-fold>
         //<editor-fold defaultstate="collapsed" desc="Sort by">
         val HOME_SONGS_SORT_BY by lazy {
-            Enum( preferences, "HomeSongsSortBy", "", SongSortBy.Title )
+            Enum( preferences, "HomeSongsSortBy", "", SongSortBy.TITLE )
         }
         val HOME_ON_DEVICE_SONGS_SORT_BY by lazy {
             Enum( preferences, "HomeOnDeviceSongsSortBy", "", OnDeviceSongSortBy.Title )
         }
         val HOME_ARTISTS_SORT_BY by lazy {
-            Enum( preferences, "HomeArtistsSortBy", "", ArtistSortBy.Name )
+            Enum( preferences, "HomeArtistsSortBy", "", ArtistSortBy.TITLE )
         }
         val HOME_ALBUMS_SORT_BY by lazy {
-            Enum( preferences, "HomeAlbumsSortBy", "", AlbumSortBy.Title )
+            Enum( preferences, "HomeAlbumsSortBy", "", AlbumSortBy.TITLE )
         }
         val HOME_LIBRARY_SORT_BY by lazy {
-            Enum( preferences, "HomeLibrarySortBy", "", PlaylistSortBy.SongCount )
+            Enum( preferences, "HomeLibrarySortBy", "", PlaylistSortBy.SONG_COUNT )
         }
         val PLAYLIST_SONGS_SORT_BY by lazy {
-            Enum( preferences, "PlaylistSongsSortBy", "", PlaylistSongSortBy.Title )
+            Enum( preferences, "PlaylistSongsSortBy", "", PlaylistSongSortBy.TITLE )
         }
         //</editor-fold>
         //<editor-fold defaultstate="collapsed" desc="Sort order">
         val HOME_SONGS_SORT_ORDER by lazy {
-            Enum( preferences, "HomeSongsSortOrder", "", SortOrder.Ascending )
+            Enum( preferences, "HomeSongsSortOrder", "", SortOrder.ASCENDING )
         }
         val HOME_ARTISTS_SORT_ORDER by lazy {
-            Enum( preferences, "PlaylistSongsSortOrder", "", SortOrder.Ascending )
+            Enum( preferences, "PlaylistSongsSortOrder", "", SortOrder.ASCENDING )
         }
         val HOME_ALBUM_SORT_ORDER by lazy {
-            Enum( preferences, "PlaylistSongsSortOrder", "", SortOrder.Ascending )
+            Enum( preferences, "PlaylistSongsSortOrder", "", SortOrder.ASCENDING )
         }
         val HOME_LIBRARY_SORT_ORDER by lazy {
-            Enum( preferences, "HomeLibrarySortOrder", "", SortOrder.Ascending )
+            Enum( preferences, "HomeLibrarySortOrder", "", SortOrder.ASCENDING )
         }
         val PLAYLIST_SONGS_SORT_ORDER by lazy {
-            Enum( preferences, "PlaylistSongsSortOrder", "", SortOrder.Ascending )
+            Enum( preferences, "PlaylistSongsSortOrder", "", SortOrder.ASCENDING )
         }
         //</editor-fold>
         //<editor-fold defaultstate="collapsed" desc="Max # of ...">
@@ -1089,27 +1089,6 @@ sealed class Preferences<T>(
 
         fun isLoggedInToDiscord(): kotlin.Boolean =
             DISCORD_LOGIN.value && DISCORD_ACCESS_TOKEN.value.isNotBlank()
-
-        /**
-         * Initialize needed properties for settings to use.
-         *
-         * **ATTENTION**: Must be call as early as possible to prevent
-         * because all preference require [preferences] to be initialized
-         * to work.
-         */
-        fun load(profilePreferences: SharedPreferences, preferences: SharedPreferences, encryptedPreferences: SharedPreferences ) {
-            // Only set once to prevent unwanted injection
-            if ( !::profilePreferences.isInitialized )
-                this.profilePreferences = profilePreferences
-
-            // Only set once to prevent unwanted injection
-            if( !::preferences.isInitialized )
-                this.preferences = preferences
-
-            // Only set once to prevent unwanted injection
-            if( !::encryptedPreferences.isInitialized )
-                this.encryptedPreferences = encryptedPreferences
-        }
 
         /**
          * Finalize all changes and write it to disk.
