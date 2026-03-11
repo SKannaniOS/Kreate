@@ -70,6 +70,7 @@ import app.kreate.android.service.createDataSourceFactory
 import app.kreate.android.service.Discord
 import app.kreate.android.service.DownloadHelper
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 import app.kreate.android.service.newpipe.NewPipeDownloader
 =======
@@ -77,6 +78,8 @@ import app.kreate.android.service.NetworkService
 <<<<<<< HEAD
 >>>>>>> upstream/main
 =======
+=======
+>>>>>>> upstream/main
 import app.kreate.android.service.player.CustomExoPlayer
 >>>>>>> upstream/main
 import app.kreate.android.service.player.ExoPlayerListener
@@ -91,7 +94,9 @@ import app.kreate.database.models.Event
 import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
 import app.kreate.di.CacheType
+import co.touchlab.kermit.Logger
 import com.google.common.util.concurrent.MoreExecutors
+import io.ktor.client.HttpClient
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.NavigationEndpoint
 import it.fast4x.rimusic.Database
@@ -158,7 +163,6 @@ import me.knighthat.innertube.model.InnertubeSong
 import me.knighthat.utils.Toaster
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -212,6 +216,10 @@ class PlayerServiceModern:
     private val player: CustomExoPlayer by inject()
     private val downloadHelper: DownloadHelper by inject()
     private val volumeObserver: VolumeObserver by inject()
+<<<<<<< HEAD
+>>>>>>> upstream/main
+=======
+    private val logger = Logger.withTag( this::class.java.simpleName )
 >>>>>>> upstream/main
 
     private lateinit var listener: ExoPlayerListener
@@ -306,7 +314,7 @@ class PlayerServiceModern:
 
     @kotlin.OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     override fun onCreate() {
-        Innertube.client = NetworkService.client
+        Innertube.client = inject<HttpClient>().value
 
         super.onCreate()
 
@@ -322,8 +330,7 @@ class PlayerServiceModern:
         coroutineScope.launch {
             connectivityObserver.networkStatus.collect { isAvailable ->
                 isNetworkAvailable.value = isAvailable
-                Timber.d("PlayerServiceModern network status: $isAvailable")
-                println("PlayerServiceModern network status: $isAvailable")
+                logger.d { "PlayerServiceModern network status: $isAvailable" }
                 if (isAvailable && waitingForNetwork.value) {
                     waitingForNetwork.value = false
                     withContext( Dispatchers.Main ) {
@@ -345,7 +352,7 @@ class PlayerServiceModern:
                 }
             )
         }.onFailure {
-            Timber.e("Failed init bitmap provider in PlayerService ${it.stackTraceToString()}")
+            logger.e( it ) { "Failed init bitmap provider" }
         }
 
         val preferences = preferences
@@ -515,7 +522,7 @@ class PlayerServiceModern:
         try {
             super.onUpdateNotification(session, startInForegroundRequired)
         } catch( err: Exception ) {
-            Timber.tag( "PLayerServiceModern" ).e( err, "failed to update notification" )
+            logger.e( err ) { "failed to update notification" }
         }
 
     override fun onBind(intent: Intent?) = super.onBind(intent) ?: binder
@@ -605,7 +612,7 @@ class PlayerServiceModern:
             try{
                 unregisterReceiver(notificationActionReceiver)
             } catch (e: Exception){
-                Timber.e("PlayerServiceModern onDestroy unregisterReceiver notificationActionReceiver ${e.stackTraceToString()}")
+                logger.e( e ) { "onDestroy unregisterReceiver notificationActionReceiver failed!" }
             }
 
 
@@ -629,7 +636,7 @@ class PlayerServiceModern:
 
             preferences.unregisterOnSharedPreferenceChangeListener(this)
         }.onFailure {
-            Timber.e("Failed onDestroy in PlayerService ${it.stackTraceToString()}")
+            logger.e( it ) { "onDestroy failed!" }
         }
         super.onDestroy()
     }
@@ -637,21 +644,21 @@ class PlayerServiceModern:
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
         when (key) {
-            Preferences.AUDIO_VOLUME_NORMALIZATION.key,
-            Preferences.AUDIO_VOLUME_NORMALIZATION_TARGET.key -> listener.maybeNormalizeVolume()
+            Preferences.Key.AUDIO_VOLUME_NORMALIZATION,
+            Preferences.Key.AUDIO_VOLUME_NORMALIZATION_TARGET -> listener.maybeNormalizeVolume()
 
-            Preferences.RESUME_PLAYBACK_WHEN_CONNECT_TO_AUDIO_DEVICE.key -> maybeResumePlaybackWhenDeviceConnected()
+            Preferences.Key.RESUME_PLAYBACK_WHEN_CONNECT_TO_AUDIO_DEVICE -> maybeResumePlaybackWhenDeviceConnected()
 
-            Preferences.AUDIO_SKIP_SILENCE.key ->
+            Preferences.Key.AUDIO_SKIP_SILENCE ->
                 player.skipSilenceEnabled = sharedPreferences.getBoolean( key, Preferences.AUDIO_SKIP_SILENCE.defaultValue )
 
-            Preferences.QUEUE_LOOP_TYPE.key ->
+            Preferences.Key.QUEUE_LOOP_TYPE ->
                 player.repeatMode = sharedPreferences.getEnum( key, Preferences.QUEUE_LOOP_TYPE.defaultValue ).type
 
-            Preferences.AUDIO_BASS_BOOST_LEVEL.key,
-            Preferences.AUDIO_BASS_BOOSTED.key -> maybeBassBoost()
+            Preferences.Key.AUDIO_BASS_BOOST_LEVEL,
+            Preferences.Key.AUDIO_BASS_BOOSTED -> maybeBassBoost()
 
-            Preferences.AUDIO_REVERB_PRESET.key -> maybeReverb()
+            Preferences.Key.AUDIO_REVERB_PRESET -> maybeReverb()
         }
     }
 
@@ -860,7 +867,7 @@ class PlayerServiceModern:
             val queue = Database.queueTable.blockingItems()
 
             if( queue.isEmpty() ) {
-                Timber.tag( "PersistentQueue" ).i( "Persistent queue empty, not resuming!" )
+                logger.i { "Persistent queue empty, not resuming!" }
                 return@launch
             }
 
@@ -1060,7 +1067,7 @@ class PlayerServiceModern:
                                     }
                                 }
                 }.onFailure { err ->
-                    Timber.tag( "SongRadio" ).e( err )
+                    logger.e( "", err )
                     Toaster.e( R.string.error_song_radio_failed )
                 }
 

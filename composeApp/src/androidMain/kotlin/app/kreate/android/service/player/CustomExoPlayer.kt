@@ -29,13 +29,13 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
 import app.kreate.android.Preferences
 import app.kreate.android.service.Discord
+import co.touchlab.kermit.Logger
 import it.fast4x.rimusic.utils.isAtLeastAndroid10
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import timber.log.Timber
 import java.io.IOException
 import kotlin.math.max
 import kotlin.math.min
@@ -74,7 +74,7 @@ class CustomExoPlayer private constructor(
                     enableFloatOutput: Boolean,
                     enableAudioTrackPlaybackParams: Boolean
                 ): AudioSink {
-                    val skipSilenceLength = preferences.getLong( Preferences.AUDIO_SKIP_SILENCE_LENGTH.key, 1_000L )
+                    val skipSilenceLength = preferences.getLong( Preferences.Key.AUDIO_SKIP_SILENCE_LENGTH, 1_000L )
                     val minimumSilenceDuration = skipSilenceLength.coerceIn( 1_000L..2_000_000L )
 
                     return DefaultAudioSink.Builder(context)
@@ -108,7 +108,7 @@ class CustomExoPlayer private constructor(
                                                                   .setContentType( C.AUDIO_CONTENT_TYPE_MUSIC )
                                                                   .build()
             val handleAudioFocus = preferences.getBoolean(
-                Preferences.AUDIO_SMART_PAUSE_DURING_CALLS.key,
+                Preferences.Key.AUDIO_SMART_PAUSE_DURING_CALLS,
                 false
             )
 
@@ -296,7 +296,7 @@ class CustomExoPlayer private constructor(
         try {
             player.bufferedPercentage
         } catch ( e: IllegalArgumentException ) {
-            Timber.tag( this::class.java.simpleName ).e( e )
+            Logger.e( "", e, this::class.java.simpleName )
             0
         }
 

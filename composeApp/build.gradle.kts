@@ -95,8 +95,6 @@ kotlin {
             implementation( libs.media3.datasource.okhttp )
             implementation( libs.androidyoutubeplayer )
 
-            implementation( libs.timber )
-
             implementation( libs.toasty )
 
             // Dependency injection
@@ -127,7 +125,7 @@ kotlin {
             implementation(libs.navigation.kmp)
 
             //coil3 mp
-            implementation(libs.coil3.compose.core)
+            implementation( libs.coil3.compose )
             implementation( libs.coil3.network.ktor )
 
             implementation(libs.translator)
@@ -150,6 +148,10 @@ kotlin {
             // Dependency injection
             implementation( libs.koin.core )
             implementation( libs.koin.navigation )
+
+            // Logging
+            implementation( libs.kermit )
+            implementation( libs.kermit.io )
         }
         commonTest.dependencies {
             implementation( libs.kotlin.test )

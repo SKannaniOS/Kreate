@@ -3,6 +3,7 @@
 version-code = "130"
 version-name = "2.0.0"
 
+<<<<<<< HEAD
 agp = "8.13.2"
 kotlin = "2.3.0"
 kotlin-ksp = "2.3.4"
@@ -17,6 +18,16 @@ media3 = "1.9.0"
 >>>>>>> upstream/main
 ktor = "3.3.3"
 brotli = "0.1.2"
+=======
+agp = "9.0.1"
+kotlin = "2.3.10"
+kotlin-ksp = "2.3.6"
+coil3 = "3.4.0"
+room = "2.8.4"
+sqlite = "2.6.2"
+media3 = "1.9.2"
+ktor = "3.4.1"
+>>>>>>> upstream/main
 palette = "1.0.0"
 desugaring = "2.1.5"
 appcompat = "1.7.1"
@@ -26,32 +37,31 @@ constraintlayout = "1.1.1"
 translator = "1.1.1"
 kotlin-csv = "1.10.0"
 monetcompat = "0.4.1"
-timber = "5.0.1"
 okhttp3 = "5.3.2"
 math3 = "3.6.1"
 toasty = "1.5.2"
 androidyoutubeplayer = "13.0.0"
 glance = "1.1.1"
-navigationKMP = "2.9.1"
-vlcj = "4.11.0"
+navigationKMP = "2.9.2"
+vlcj = "4.12.1"
 kotlinxCoroutines = "1.10.2"
 hypnoticcanvas = "0.4.1"
 ksoup = "0.6.0"
-jetbrains-annotations = "26.0.2-1"
+jetbrains-annotations = "26.1.0"
 lombok = "1.18.42"
-junit5 = "6.0.2"
+junit5 = "6.0.3"
 webkit = "1.15.0"
 newpipe-extractor = "v0.26.0"
-compose-kmp = "1.10.0"
-license-report = "3.0.1"
+compose-kmp = "1.10.2"
+license-report = "3.1.1"
 material3-kmp = "1.9.0"
 junit4 = "4.13.2"
-robolectric = "4.16"
+robolectric = "4.16.1"
 androidTest = "1.7.0"
 lifecycle = "2.10.0"
-extractor = "a194151"
-kotlinx-serialization = "1.9.0"
+kotlinx-serialization = "1.10.0"
 koin = "4.1.1"
+kermit = "2.1.0"
 
 
 [libraries]
@@ -104,7 +114,7 @@ okhttp3-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-
 okhttp3-dns-over-https = { group = "com.squareup.okhttp3", name = "okhttp-dnsoverhttps", version.ref = "okhttp3" }
 
 # Coil
-coil3-compose-core = { group = "io.coil-kt.coil3", name = "coil-compose-core", version.ref = "coil3" }
+coil3-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil3" }
 coil3-network-ktor = { group = "io.coil-kt.coil3", name = "coil-network-ktor3", version.ref = "coil3" }
 
 # KSoup
@@ -118,7 +128,6 @@ hypnoticcanvas-shaders = { group = "com.mikepenz.hypnoticcanvas", name = "hypnot
 # Newpipe extractor
 newpipe-extractor = { module = "com.github.teamnewpipe:NewPipeExtractor", version.ref = "newpipe-extractor" }
 nanojson = { group = "com.github.TeamNewPipe", name = "nanojson", version = "e9d656ddb49a412a5a0a5d5ef20ca7ef09549996" }
-extractor = { module = "com.github.mostafaalagamy:MetrolistExtractor", version.ref = "extractor" }
 
 # Annotations
 lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
@@ -144,15 +153,17 @@ koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-navigation = { module = "io.insert-koin:koin-compose-viewmodel-navigation", version.ref = "koin" }
 
+# Logging
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+kermit-io = { module = "co.touchlab:kermit-io", version.ref = "kermit" }
+
 # Extras
 translator = {  group = "com.github.therealbush", name = "translator", version.ref = "translator" }
 kotlin-csv = {  group = "com.jsoizo", name = "kotlin-csv-jvm", version.ref = "kotlin-csv" }
-timber = {  group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 math3 = { group = "org.apache.commons", name = "commons-math3", version.ref = "math3" }
 toasty = { group = "com.github.GrenderG", name = "Toasty", version.ref = "toasty" }
 androidyoutubeplayer = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "androidyoutubeplayer" }
 vlcj = {  group = "uk.co.caprica", name = "vlcj", version.ref = "vlcj" }
-brotli = { group = "org.brotli", name = "dec", version.ref = "brotli" }
 desugaring-nio = { group = "com.android.tools", name = "desugar_jdk_libs_nio", version.ref = "desugaring" }
 
 

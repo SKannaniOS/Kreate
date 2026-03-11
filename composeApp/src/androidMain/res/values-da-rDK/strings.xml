@@ -814,9 +814,13 @@
     <string name="setting_entry_sync_quotes">Sync \"%s\"</string>
     <string name="setting_entry_test_proxy">Test proxy</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <string name="info_proxy_verified">Proxy is correctly configured</string>
 =======
     <string name="info_proxy_verified">Proxy er konfigureret korrekt</string>
+>>>>>>> upstream/main
+=======
+    <string name="success_proxy_verified">Proxy er konfigureret korrekt</string>
 >>>>>>> upstream/main
     <string name="cache_location_split">Split</string>
     <string name="setting_description_cache_location_system">Store both cached and downloaded in the app\'s cache, which can be deleted by clearing the cache in settings</string>
