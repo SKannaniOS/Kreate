@@ -4,21 +4,25 @@ import android.animation.Animator
 import android.animation.ValueAnimator
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.media.audiofx.BassBoost
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.PresetReverb
+import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.util.fastMapIndexed
 import androidx.core.animation.doOnEnd
 import androidx.core.animation.doOnStart
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.media3.common.AuxEffectInfo
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -28,24 +32,26 @@ import androidx.media3.common.Player.REPEAT_MODE_ONE
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.offline.Download
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.service.PlayerEventUpdateDiscord
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toMediaItem
+import app.kreate.android.widget.WidgetReceiver
 import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
 import app.kreate.di.PrefType
 import co.touchlab.kermit.Logger
 import it.fast4x.innertube.models.NavigationEndpoint
 import it.fast4x.rimusic.Database
-import it.fast4x.rimusic.service.MyDownloadHelper
+import it.fast4x.rimusic.enums.QueueLoopType
+import it.fast4x.rimusic.service.modern.PlayerServiceModern
 import it.fast4x.rimusic.service.modern.PlayerServiceModern.Companion.SleepTimerNotificationId
+import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.utils.TimerJob
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.forcePlay
-import it.fast4x.rimusic.utils.manageDownload
+import it.fast4x.rimusic.utils.getEnum
 import it.fast4x.rimusic.utils.mediaItems
 import it.fast4x.rimusic.utils.setGlobalVolume
 import it.fast4x.rimusic.utils.timer
@@ -54,9 +60,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.mapNotNull
@@ -68,7 +77,6 @@ import me.knighthat.innertube.model.InnertubeSong
 import me.knighthat.utils.Toaster
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import org.koin.java.KoinJavaComponent.inject
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -81,8 +89,10 @@ import kotlin.time.Duration
  * - Observable states (current mediaItem, timeline, window, etc.)
  */
 @OptIn(UnstableApi::class)
-class StatefulPlayerImpl(private val player: ExoPlayer) :
-    ExoPlayer by player,
+class StatefulPlayerImpl(
+    private val context: Context,
+    private val player: ExoPlayer
+) : ExoPlayer by player,
     StatefulPlayer,
     Player.Listener,
     KoinComponent,
@@ -90,6 +100,9 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
 {
 
     companion object {
+        // TODO: Make this a setting entry
+        private const val SAVE_INTERVAL = 30_000L
+
         const val SleepTimerNotificationChannelId = "sleep_timer_channel_id"
     }
 
@@ -98,6 +111,8 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
     private val _currentMediaItemState = MutableStateFlow<MediaItem?>(null)
     private val _currentTimelineState = MutableStateFlow(Timeline.EMPTY)
     private val _currentWindowState = MutableStateFlow<Timeline.Window?>(null)
+    private val _isPlayingState = MutableStateFlow(false)
+    private val _isPersistentQueueEnabled = MutableStateFlow(false)
 
     //<editor-fold desc="Jobs">
     private var volumeAnimator: ValueAnimator? = null
@@ -116,6 +131,7 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
     override val currentMediaItemState = _currentMediaItemState.asStateFlow()
     override val currentTimelineState = _currentTimelineState.asStateFlow()
     override val currentWindowState = _currentWindowState.asStateFlow()
+    override val isPlayingState = _isPlayingState.asStateFlow()
 
     init {
         this.addListener( this )
@@ -123,6 +139,7 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
 
         val preferences: SharedPreferences by inject(PrefType.DEFAULT)
         preferences.registerOnSharedPreferenceChangeListener( this )
+        _isPersistentQueueEnabled.value = preferences.getBoolean(Preferences.Key.ENABLE_PERSISTENT_QUEUE, false)
 
         skipSilenceEnabled = Preferences.AUDIO_SKIP_SILENCE.value
         repeatMode = Preferences.QUEUE_LOOP_TYPE.value.type
@@ -134,6 +151,7 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
         )
 
         loadPersistentQueue()
+        schedulePersistentQueueSave()
     }
 
     private fun stopFadingEffect() {
@@ -247,6 +265,55 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
         }
     }
 
+    @AnyThread
+    private fun savePersistentQueue(queue: List<MediaItem>, index: Int, position: Long?) {
+        if( queue.isEmpty() || !Preferences.ENABLE_PERSISTENT_QUEUE.value )
+            return
+
+        val items = queue.fastMapIndexed { i, item ->
+            PersistentQueue(item.mediaId, if( index == i ) position else null)
+        }
+        Database.asyncTransaction {
+            queueTable.deleteAll()
+            queue.forEach( ::insertIgnore )
+            queueTable.insertIgnore( items )
+
+            logger.d { "Queue saved!" }
+        }
+    }
+
+    @MainThread
+    private fun savePersistentQueue() {
+        val queue = mediaItems.toList()
+        val index = currentMediaItemIndex
+        val position = currentPosition
+
+        coroutineScope.launch( Dispatchers.Default ) {
+            savePersistentQueue( queue, index, position )
+        }
+    }
+
+    private fun schedulePersistentQueueSave() {
+        coroutineScope.launch(Dispatchers.IO) {
+            combine(_isPlayingState, _isPersistentQueueEnabled) { a, b -> a && b }
+            .collectLatest {
+                if( !it ) {
+                    logger.v { "Schedule for saving persistent queue has stopped!" }
+                    return@collectLatest
+                }
+
+                while( true ) {
+                    val (queue, index, position) = withContext(Dispatchers.Main) {
+                        Triple(mediaItems.toList(), currentMediaItemIndex, currentPosition)
+                    }
+                    savePersistentQueue( queue, index, position )
+
+                    delay( SAVE_INTERVAL )
+                }
+            }
+        }
+    }
+
     /*
             StatefulPlayer
      */
@@ -355,20 +422,6 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
             repeatMode = REPEAT_MODE_OFF
     }
 
-    override fun downloadCurrentMediaItem() {
-
-        val mediaItem = currentMediaItem ?: return
-        val mediaId = mediaItem.mediaId
-        val isDownloaded = MyDownloadHelper.instance.downloads.value[mediaId]?.state == Download.STATE_COMPLETED
-        if( !isDownloaded ) {
-            logger.v { "Downloading current media item ($mediaId)" }
-
-            val context: Context by inject(Context::class.java)
-            manageDownload( context, mediaItem, false )
-        } else
-            Toaster.i( R.string.info_song_already_downloaded )
-    }
-
     override fun startSleepTimer( duration: Duration ) {
         val context: Context by inject()
         val title = context.getString( R.string.sleep_timer_ended )
@@ -395,6 +448,8 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
 
     override fun sleepTimerRemaining(): Flow<Long?> = timerJob?.millisLeft ?: flowOf( null )
 
+    override fun toForwardingPlayer(): ForwardingPlayer = ForwardingPlayerImpl()
+
     /*
             ExoPlayer
      */
@@ -406,8 +461,6 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
             if( playbackState == Player.STATE_IDLE )
                 prepare()
             player.play()
-
-            onIsPlayingChanged( true )
         }
 
         val duration = Preferences.AUDIO_FADE_DURATION.value.asMillis
@@ -461,6 +514,8 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
 
         stopRadio()
         stopSleepTimer()
+
+        savePersistentQueue()
 
         loudnessNormalizationJob?.cancel()
         loudnessNormalizationJob = null
@@ -566,8 +621,15 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
         }
     }
 
+    private fun updateMediaControl() {
+        val intent = Intent(context, PlayerServiceModern::class.java)
+            .setAction( PlayerServiceModern.ACTION_UPDATE_MEDIA_CONTROL )
+        context.startService( intent )
+    }
+
     override fun onMediaItemTransition( mediaItem: MediaItem?, reason: Int ) {
         normalizeLoudness()
+        savePersistentQueue()
 
         // Don't update [_currentMediaItemState] when on repeat
         if( reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT ) {
@@ -578,6 +640,53 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
                 }
             }
         }
+
+        /*
+            Don't fetch more item if:
+            - Feature is disabled
+            - When song is repeated
+            - Start new queue
+            - Is a local song
+         */
+        if( Preferences.PLAYER_ACTION_START_RADIO.value
+            && reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+            && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
+            && currentMediaItem?.isLocal == false
+        ) {
+            val positionToLast = player.mediaItemCount - player.currentMediaItemIndex
+            // Make sure only add when about 10 songs to the last song in queue
+            // TODO: Add slider in settings to let user change number of songs
+            if( positionToLast <= 10 && !isLoadingRadio() )
+                startRadio()
+        }
+
+        updateMediaControl()
+    }
+
+    override fun onIsPlayingChanged( isPlaying: Boolean ) {
+        _isPlayingState.update { isPlaying }
+
+        //<editor-fold desc="Save position to persistent queue (on pause & is enabled)">
+        if( !isPlaying && Preferences.ENABLE_PERSISTENT_QUEUE.value ) {
+            val songId = currentMediaItem?.mediaId
+            val position = currentPosition
+            Database.asyncTransaction {
+                songId ?: return@asyncTransaction
+                queueTable.updatePosition(songId, position)
+
+                logger.d { "Updated $songId's position to $position in persistent queue" }
+            }
+        }
+        //</editor-fold>
+        //<editor-fold desc="Update widgets">
+        val metadataBundle = currentMediaItem?.mediaMetadata?.toBundle()
+         val intent = Intent(WidgetReceiver.ACTION_UPDATE).apply {
+            putExtra(WidgetReceiver.KEY_IS_PLAYING, isPlaying)
+            putExtra(WidgetReceiver.KEY_METADATA, metadataBundle)
+            `package` = context.packageName
+        }
+        context.sendBroadcast( intent )
+        //</editor-fold>
     }
 
     override fun onTimelineChanged( timeline: Timeline, reason: Int ) =
@@ -630,6 +739,14 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
         //</editor-fold>
     }
 
+    override fun onShuffleModeEnabledChanged( shuffleModeEnabled: Boolean ) {
+        updateMediaControl()
+    }
+
+    override fun onRepeatModeChanged( repeatMode: Int ) {
+        updateMediaControl()
+    }
+
     /*
             SharedPreferences listener
      */
@@ -653,6 +770,26 @@ class StatefulPlayerImpl(private val player: ExoPlayer) :
             Preferences.Key.AUDIO_BASS_BOOST_LEVEL -> boostLowFrequencies()
 
             Preferences.Key.AUDIO_REVERB_PRESET -> updateReverb()
+
+            Preferences.Key.QUEUE_LOOP_TYPE ->
+                repeatMode = pref.getEnum( key, QueueLoopType.Default ).type
+
+            Preferences.Key.MEDIA_NOTIFICATION_FIRST_ICON,
+            Preferences.Key.MEDIA_NOTIFICATION_SECOND_ICON -> updateMediaControl()
+
+            Preferences.Key.ENABLE_PERSISTENT_QUEUE -> {
+                val isEnabled = pref.getBoolean(key, false)
+
+                _isPersistentQueueEnabled.update { isEnabled }
+                if( !isEnabled )
+                    Database.asyncTransaction { queueTable.deleteAll() }
+            }
         }
+    }
+
+    private inner class ForwardingPlayerImpl : ForwardingPlayer(this@StatefulPlayerImpl) {
+
+        override fun getAvailableCommands(): Player.Commands =
+            super.availableCommands.buildUpon().addAllCommands().build()
     }
 }

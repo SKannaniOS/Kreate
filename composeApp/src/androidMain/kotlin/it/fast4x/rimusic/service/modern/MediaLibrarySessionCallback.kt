@@ -15,7 +15,6 @@ import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.exoplayer.offline.Download
@@ -29,12 +28,12 @@ import androidx.media3.session.SessionResult
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.service.player.ExoPlayerListener
-import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.database.ext.FormatWithSong
 import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
 import app.kreate.di.CacheType
 import app.kreate.util.cleanPrefix
+import co.touchlab.kermit.Logger
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -68,9 +67,7 @@ import org.koin.core.component.inject
 
 @UnstableApi
 class MediaLibrarySessionCallback(
-    val context: Context,
-    val database: Database,
-    val downloadHelper: MyDownloadHelper
+    private val context: Context,
 ) : MediaLibrarySession.Callback, KoinComponent {
 
     private val cache: Cache by inject(CacheType.CACHE)
@@ -79,39 +76,20 @@ class MediaLibrarySessionCallback(
     lateinit var listener: ExoPlayerListener
     var searchedSongs: List<Song> = emptyList()
 
-    fun toggleLike( player: Player ) {
-        val mediaItem = player.currentMediaItem ?: return
-        val player: StatefulPlayer by inject()
-        Database.asyncTransaction {
-            songTable.rotateLikeState( mediaItem.mediaId )
-                     .also {
-                         listener.updateMediaControl( context, player )
-                     }
-        }
-
-        MyDownloadHelper.autoDownloadWhenLiked( mediaItem )
-    }
-
-    fun onSearch() {
-        val intent = Intent(context.applicationContext, MainActivity::class.java)
-                .setAction( MainActivity.action_search )
-               .setFlags(FLAG_ACTIVITY_NEW_TASK + FLAG_ACTIVITY_CLEAR_TASK)
-        context.startActivity(  intent )
-    }
-
     override fun onConnect(
         session: MediaSession,
         controller: MediaSession.ControllerInfo
     ): MediaSession.ConnectionResult {
         val connectionResult = super.onConnect(session, controller)
         return MediaSession.ConnectionResult.accept(
-            connectionResult.availableSessionCommands.buildUpon()
-                .add(MediaSessionConstants.CommandToggleDownload)
-                .add(MediaSessionConstants.CommandToggleLike)
-                .add(MediaSessionConstants.CommandToggleShuffle)
-                .add(MediaSessionConstants.CommandToggleRepeatMode)
-                .add(MediaSessionConstants.CommandStartRadio)
-                .add(MediaSessionConstants.CommandSearch)
+            connectionResult.availableSessionCommands
+                .buildUpon()
+                .add( Command.search )
+                .add( Command.download )
+                .add( Command.like )
+                .add( Command.cycleRepeat )
+                .add( Command.toggleShuffle )
+                .add( Command.toggleRadio )
                 .build(),
             connectionResult.availablePlayerCommands
         )
@@ -166,17 +144,24 @@ class MediaLibrarySessionCallback(
         controller: MediaSession.ControllerInfo,
         customCommand: SessionCommand,
         args: Bundle,
-    ): ListenableFuture<SessionResult> {
-        val player = session.player as StatefulPlayer
-        when (customCommand.customAction) {
-            MediaSessionConstants.ACTION_TOGGLE_LIKE -> toggleLike( player )
-            MediaSessionConstants.ACTION_TOGGLE_DOWNLOAD -> player.downloadCurrentMediaItem()
-            MediaSessionConstants.ACTION_TOGGLE_SHUFFLE -> player.toggleShuffleMode()
-            MediaSessionConstants.ACTION_TOGGLE_REPEAT_MODE -> player.cycleRepeatMode()
-            MediaSessionConstants.ACTION_START_RADIO -> player.startRadio()
-            MediaSessionConstants.ACTION_SEARCH -> onSearch()
+    ): ListenableFuture<SessionResult> = scope.future {
+        try {
+            if( customCommand == Command.search ) {
+                val intent = Intent(context, MainActivity::class.java)
+                    .setAction( MainActivity.action_search )
+                    .setFlags( FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_CLEAR_TASK )
+                context.startActivity(  intent )
+            } else {
+                val intent = Intent(context, PlayerServiceModern::class.java)
+                    .setAction( customCommand.customAction )
+                context.startService( intent )
+            }
+
+            SessionResult(SessionResult.RESULT_SUCCESS)
+        } catch( err: Exception ) {
+            Logger.e( "", err )
+            SessionResult(SessionError.ERROR_UNKNOWN)
         }
-        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
     }
 
     @OptIn(UnstableApi::class)
@@ -242,18 +227,18 @@ class MediaLibrarySessionCallback(
                     )
                 )
 
-                PlayerServiceModern.SONG -> database.eventTable
+                PlayerServiceModern.SONG -> Database.eventTable
                                                     .findSongsMostPlayedBetween( StatisticsType.OneMonth.timeStampInMillis() )
                                                     .first()
                                                     .ifEmpty {
                                                         // Only here to avoid empty list
-                                                        database.eventTable
+                                                        Database.eventTable
                                                                 .findSongsMostPlayedBetween( 0L )
                                                                 .first()
                                                     }
                                                     .map { it.toMediaItem(parentId) }
 
-                PlayerServiceModern.ARTIST -> database.artistTable.allFollowing().first().map { artist ->
+                PlayerServiceModern.ARTIST -> Database.artistTable.allFollowing().first().map { artist ->
                     browsableMediaItem(
                         "${PlayerServiceModern.ARTIST}/${artist.id}",
                         artist.name ?: "",
@@ -263,7 +248,7 @@ class MediaLibrarySessionCallback(
                     )
                 }
 
-                PlayerServiceModern.ALBUM -> database.albumTable.blockingAll().map { album ->
+                PlayerServiceModern.ALBUM -> Database.albumTable.blockingAll().map { album ->
                     browsableMediaItem(
                         "${PlayerServiceModern.ALBUM}/${album.id}",
                         album.title ?: "",
@@ -275,11 +260,11 @@ class MediaLibrarySessionCallback(
 
 
                 PlayerServiceModern.PLAYLIST -> {
-                    val likedSongCount = database.songTable.allFavorites().first().size
+                    val likedSongCount = Database.songTable.allFavorites().first().size
                     val cachedSongCount = getCountCachedSongs().first()
                     val downloadedSongCount = getCountDownloadedSongs().first()
-                    val onDeviceSongCount = database.songTable.allOnDevice().first().size
-                    val playlists = database.playlistTable.sortPreviewsBySongCount().first()
+                    val onDeviceSongCount = Database.songTable.allOnDevice().first().size
+                    val playlists = Database.playlistTable.sortPreviewsBySongCount().first()
                     listOf(
                         browsableMediaItem(
                             "${PlayerServiceModern.PLAYLIST}/${ID_FAVORITES}",
@@ -333,7 +318,7 @@ class MediaLibrarySessionCallback(
                 else -> when {
 
                     parentId.startsWith("${PlayerServiceModern.ARTIST}/") ->
-                        database.songArtistMapTable
+                        Database.songArtistMapTable
                                 .allSongsBy( parentId.removePrefix("${PlayerServiceModern.ARTIST}/") )
                                 .first()
                                 .map { it.toMediaItem( parentId ) }
@@ -341,7 +326,7 @@ class MediaLibrarySessionCallback(
                     parentId.startsWith("${PlayerServiceModern.ALBUM}/") -> {
                         val albumId = parentId.removePrefix("${PlayerServiceModern.ALBUM}/")
 
-                        database.songAlbumMapTable
+                        Database.songAlbumMapTable
                                 .allSongsOf( albumId )
                                 .first()
                                 .map { it.toMediaItem( parentId ) }
@@ -351,8 +336,8 @@ class MediaLibrarySessionCallback(
 
                         when (val playlistId =
                             parentId.removePrefix("${PlayerServiceModern.PLAYLIST}/")) {
-                            ID_FAVORITES -> database.songTable.allFavorites()
-                            ID_CACHED -> database.formatTable
+                            ID_FAVORITES -> Database.songTable.allFavorites()
+                            ID_CACHED -> Database.formatTable
                                                  .allWithSongs()
                                                  .map { list ->
                                                      list.filter {
@@ -363,17 +348,17 @@ class MediaLibrarySessionCallback(
                                                          .reversed()
                                                  }
                             ID_TOP ->
-                                database.eventTable
+                                Database.eventTable
                                         .findSongsMostPlayedBetween(
                                             from = 0,
                                             limit = Preferences.MAX_NUMBER_OF_TOP_PLAYED
                                                             .value
                                                             .toInt()
                                         )
-                            ID_ONDEVICE -> database.songTable.allOnDevice()
+                            ID_ONDEVICE -> Database.songTable.allOnDevice()
                             ID_DOWNLOADED -> {
-                                val downloads = downloadHelper.instance.downloads.value
-                                database.songTable
+                                val downloads = MyDownloadHelper.instance.downloads.value
+                                Database.songTable
                                         .all( excludeHidden = true )
                                         .flowOn( Dispatchers.IO )
                                         .map { list ->
@@ -383,7 +368,7 @@ class MediaLibrarySessionCallback(
                                         }
                             }
 
-                            else -> database.songPlaylistMapTable.allSongsOf( playlistId.toLong() )
+                            else -> Database.songPlaylistMapTable.allSongsOf( playlistId.toLong() )
                         }.first().map {
                             it.toMediaItem(parentId)
                         }
@@ -407,7 +392,7 @@ class MediaLibrarySessionCallback(
     ): ListenableFuture<LibraryResult<MediaItem>> = scope.future(Dispatchers.IO) {
         println("PlayerServiceModern MediaLibrarySessionCallback.onGetItem: $mediaId")
 
-        database.songTable
+        Database.songTable
                 .findById( mediaId )
                 .first()
                 ?.asMediaItem
@@ -439,22 +424,22 @@ class MediaLibrarySessionCallback(
                 }
                 PlayerServiceModern.SONG -> {
                     songId = paths[1]
-                    queryList = database.songTable.blockingAll()
+                    queryList = Database.songTable.blockingAll()
                 }
                 PlayerServiceModern.ARTIST -> {
                     songId = paths[2]
-                    queryList = database.songArtistMapTable.allSongsBy( paths[1] ).first()
+                    queryList = Database.songArtistMapTable.allSongsBy( paths[1] ).first()
                 }
                 PlayerServiceModern.ALBUM -> {
                     songId = paths[2]
-                    queryList = database.songAlbumMapTable.allSongsOf( paths[1] ).first()
+                    queryList = Database.songAlbumMapTable.allSongsOf( paths[1] ).first()
                 }
                 PlayerServiceModern.PLAYLIST -> {
                     val playlistId = paths[1]
                     songId = paths[2]
                     queryList = when ( playlistId ) {
-                        ID_FAVORITES -> database.songTable.allFavorites().map { it.reversed() }
-                        ID_CACHED -> database.formatTable
+                        ID_FAVORITES -> Database.songTable.allFavorites().map { it.reversed() }
+                        ID_CACHED -> Database.formatTable
                                              .allWithSongs()
                                              .map { list ->
                                                  list.fastFilter {
@@ -464,7 +449,7 @@ class MediaLibrarySessionCallback(
                                                      .reversed()
                                                      .fastMap( FormatWithSong::song )
                                              }
-                        ID_TOP -> database.eventTable
+                        ID_TOP -> Database.eventTable
                                            // Already in DESC order
                                            .findSongsMostPlayedBetween(
                                                from = 0,
@@ -472,10 +457,10 @@ class MediaLibrarySessionCallback(
                                                                .value
                                                                .toInt()
                                            )
-                        ID_ONDEVICE -> database.songTable.allOnDevice()
+                        ID_ONDEVICE -> Database.songTable.allOnDevice()
                         ID_DOWNLOADED -> {
-                            val downloads = downloadHelper.instance.downloads.value
-                            database.songTable
+                            val downloads = MyDownloadHelper.instance.downloads.value
+                            Database.songTable
                                     .all( excludeHidden = false )
                                     .map { songs ->
                                         songs.fastFilter {
@@ -485,7 +470,7 @@ class MediaLibrarySessionCallback(
                                     }
                         }
 
-                        else -> database.songPlaylistMapTable.allSongsOf( playlistId.toLong() )
+                        else -> Database.songPlaylistMapTable.allSongsOf( playlistId.toLong() )
                     }.first()
                 }
             }
@@ -511,7 +496,7 @@ class MediaLibrarySessionCallback(
             return Futures.immediateFuture(defaultResult)
 
         scope.future {
-            val queue = database.queueTable.blockingItems()
+            val queue = Database.queueTable.blockingItems()
             val startIndex = queue.indexOfFirst { it.position != null }
             val startPositionMs = queue[startIndex].position ?: C.TIME_UNSET
             val mediaItems = queue.map { it.song.asMediaItem.buildUpon().setTag( PersistentQueue.Tag ).build() }
@@ -568,7 +553,7 @@ class MediaLibrarySessionCallback(
             .build()
 
     private fun getCountCachedSongs() =
-        database.formatTable
+        Database.formatTable
                 .allWithSongs()
                 .map { list ->
                     list.filter {
@@ -578,10 +563,20 @@ class MediaLibrarySessionCallback(
                         .size
                 }
 
-    private fun getCountDownloadedSongs() = downloadHelper.instance.downloads.map {
+    private fun getCountDownloadedSongs() = MyDownloadHelper.instance.downloads.map {
         it.filter {
             it.value.state == Download.STATE_COMPLETED
         }.size
+    }
+
+    object Command {
+
+        val search = SessionCommand("SEARCH", Bundle.EMPTY)
+        val download = SessionCommand(PlayerServiceModern.ACTION_DOWNLOAD, Bundle.EMPTY)
+        val like = SessionCommand(PlayerServiceModern.ACTION_LIKE, Bundle.EMPTY)
+        val cycleRepeat = SessionCommand(PlayerServiceModern.PLAYER_ACTION_CYCLE_REPEAT, Bundle.EMPTY)
+        val toggleShuffle = SessionCommand(PlayerServiceModern.PLAYER_ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
+        val toggleRadio = SessionCommand(PlayerServiceModern.PLAYER_ACTION_TOGGLE_RADIO, Bundle.EMPTY)
     }
 }
 
@@ -593,16 +588,4 @@ object MediaSessionConstants {
     const val ID_DOWNLOADED = "DOWNLOADED"
     const val ID_TOP = "TOP"
     const val ID_ONDEVICE = "ONDEVICE"
-    const val ACTION_TOGGLE_DOWNLOAD = "TOGGLE_DOWNLOAD"
-    const val ACTION_TOGGLE_LIKE = "TOGGLE_LIKE"
-    const val ACTION_TOGGLE_SHUFFLE = "TOGGLE_SHUFFLE"
-    const val ACTION_TOGGLE_REPEAT_MODE = "TOGGLE_REPEAT_MODE"
-    const val ACTION_START_RADIO = "START_RADIO"
-    const val ACTION_SEARCH = "ACTION_SEARCH"
-    val CommandToggleDownload = SessionCommand(ACTION_TOGGLE_DOWNLOAD, Bundle.EMPTY)
-    val CommandToggleLike = SessionCommand(ACTION_TOGGLE_LIKE, Bundle.EMPTY)
-    val CommandToggleShuffle = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
-    val CommandToggleRepeatMode = SessionCommand(ACTION_TOGGLE_REPEAT_MODE, Bundle.EMPTY)
-    val CommandStartRadio = SessionCommand(ACTION_START_RADIO, Bundle.EMPTY)
-    val CommandSearch = SessionCommand(ACTION_SEARCH, Bundle.EMPTY)
 }

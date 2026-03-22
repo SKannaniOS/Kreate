@@ -956,12 +956,16 @@
     <string name="error_invalid_path">Geçersiz yol</string>
     <string name="description_validate_url">URL\'yi doğrula</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <string name="disabled">disabled</string>
     <string name="settings_live_wallpaper_reset_warning"> WARNING: this will switch back to your manufacturer’s default wallpaper. Unfortunately it is difficult to revert to your previous wallpaper</string>
     <string name="ok">ok</string>
 >>>>>>> upstream/main
 =======
     <string name="disabled">devre dışı</string>
+=======
+    <string name="word_disabled">devre dışı</string>
+>>>>>>> upstream/main
     <string name="settings_live_wallpaper_reset_warning"> UYARI: Bu işlem, üreticinizin varsayılan duvar kağıdına geri dönecektir. Maalesef önceki duvar kağıdınıza geri dönmek zordur</string>
     <string name="ok">tamam</string>
 <<<<<<< HEAD

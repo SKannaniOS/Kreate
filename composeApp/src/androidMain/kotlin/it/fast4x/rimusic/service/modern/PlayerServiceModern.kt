@@ -1,30 +1,13 @@
 package it.fast4x.rimusic.service.modern
 
-import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.WallpaperManager
-import android.app.WallpaperManager.FLAG_LOCK
-import android.app.WallpaperManager.FLAG_SYSTEM
-import android.content.BroadcastReceiver
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.graphics.Bitmap
-import android.graphics.Color
-import android.media.AudioDeviceCallback
-import android.media.AudioDeviceInfo
-import android.media.AudioManager
 import android.media.audiofx.AudioEffect
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import androidx.annotation.MainThread
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.getValue
-import androidx.core.content.ContextCompat
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -35,6 +18,7 @@ import androidx.media3.exoplayer.analytics.PlaybackStats
 import androidx.media3.exoplayer.analytics.PlaybackStatsListener
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaLibraryService
@@ -48,6 +32,7 @@ import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
 <<<<<<< HEAD
 import app.kreate.android.service.DownloadHelper
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
 import app.kreate.android.service.createDataSourceFactory
@@ -76,13 +61,15 @@ import app.kreate.android.service.player.CustomExoPlayer
 >>>>>>> upstream/main
 =======
 >>>>>>> upstream/main
+=======
+import app.kreate.android.service.playback.AudioHandler
+>>>>>>> upstream/main
 import app.kreate.android.service.player.ExoPlayerListener
+import app.kreate.android.service.player.LiveWallpaperEngine
+import app.kreate.android.service.player.PlaybackController
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.service.player.VolumeObserver
-import app.kreate.android.utils.centerCropBitmap
-import app.kreate.android.utils.centerCropToMatchScreenSize
 import app.kreate.android.utils.isLocalFile
-import app.kreate.android.widget.Widget
 import app.kreate.database.models.Event
 import app.kreate.di.CacheType
 import co.touchlab.kermit.Logger
@@ -91,6 +78,7 @@ import io.ktor.client.HttpClient
 import it.fast4x.innertube.Innertube
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MainActivity
+<<<<<<< HEAD
 <<<<<<< HEAD
 import it.fast4x.rimusic.appContext
 <<<<<<< HEAD
@@ -112,17 +100,16 @@ import it.fast4x.rimusic.models.Song
 =======
 >>>>>>> upstream/main
 import it.fast4x.rimusic.service.BitmapProvider
+=======
+import it.fast4x.rimusic.enums.NotificationButtons
+import it.fast4x.rimusic.extensions.connectivity.AndroidConnectivityObserverLegacy
+>>>>>>> upstream/main
 import it.fast4x.rimusic.service.MyDownloadHelper
 import it.fast4x.rimusic.service.MyDownloadService
 import it.fast4x.rimusic.utils.AppLifecycleTracker
 import it.fast4x.rimusic.utils.CoilBitmapLoader
-import it.fast4x.rimusic.utils.collect
-import it.fast4x.rimusic.utils.getEnum
 import it.fast4x.rimusic.utils.intent
-import it.fast4x.rimusic.utils.isAtLeastAndroid6
-import it.fast4x.rimusic.utils.isAtLeastAndroid7
-import it.fast4x.rimusic.utils.playNext
-import it.fast4x.rimusic.utils.playPrevious
+import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.preferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -130,14 +117,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
@@ -147,19 +129,13 @@ import me.knighthat.discord.Discord
 import me.knighthat.utils.Toaster
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import org.koin.java.KoinJavaComponent.inject
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
 
 
 val MediaItem.isLocal get() = localConfiguration?.uri?.isLocalFile() ?: false
 
-@UnstableApi
+
+@androidx.annotation.OptIn(UnstableApi::class)
 class PlayerServiceModern:
     MediaLibraryService(),
     PlaybackStatsListener.Callback,
@@ -207,29 +183,24 @@ class PlayerServiceModern:
     private lateinit var listener: ExoPlayerListener
     private val coroutineScope = CoroutineScope(Dispatchers.IO) + Job()
     private val handler = Handler(Looper.getMainLooper())
+    private val downloadListener = DownloadStateListener()
     private lateinit var mediaSession: MediaLibrarySession
     private var mediaLibrarySessionCallback: MediaLibrarySessionCallback =
-        MediaLibrarySessionCallback(this, Database, MyDownloadHelper)
-    private lateinit var bitmapProvider: BitmapProvider
-    private lateinit var downloadListener: DownloadManager.Listener
-
-    val currentMediaItem = MutableStateFlow<MediaItem?>(null)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val currentSong = currentMediaItem.flatMapLatest { mediaItem ->
-        Database.songTable.findById( mediaItem?.mediaId ?: "" )
-    }.stateIn(coroutineScope, SharingStarted.Lazily, null)
-
-    var currentSongStateDownload = MutableStateFlow(Download.STATE_STOPPED)
+        MediaLibrarySessionCallback(this)
+    private lateinit var audioHandler: AudioHandler
 
     lateinit var connectivityObserver: AndroidConnectivityObserverLegacy
     private val isNetworkAvailable = MutableStateFlow(true)
     private val waitingForNetwork = MutableStateFlow(false)
 
-    private var notificationManager: NotificationManager? = null
+    private var liveWallpaperEngine: LiveWallpaperEngine? = null
 
-    private lateinit var notificationActionReceiver: NotificationActionReceiver
+    private fun registerLiveWallpaperEngine() {
+        // Always remove previous instance first (if applicable)
+        liveWallpaperEngine?.release()
+        liveWallpaperEngine?.also( player::removeListener )
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -268,8 +239,15 @@ class PlayerServiceModern:
 =======
     private var wallpaperRevertJob: Job? = null
     private var wallpaper_cleared: Boolean = false
+=======
+        liveWallpaperEngine = LiveWallpaperEngine(this)
+        liveWallpaperEngine?.also( player::addListener )
+>>>>>>> upstream/main
 
+        logger.d { "LiveWallpaper registered" }
+    }
 
+<<<<<<< HEAD
 >>>>>>> upstream/main
     private fun onMediaItemTransition( mediaItem: MediaItem? ) {
         listener.updateMediaControl( this, player )
@@ -284,15 +262,92 @@ class PlayerServiceModern:
 
 //            val startTime = System.currentTimeMillis() - player.currentPosition
 //            discord.updateMediaItem( mediaItem, startTime )
+=======
+    private suspend fun unregisterLiveWallpaperEngine() {
+        liveWallpaperEngine?.restore()
+        liveWallpaperEngine?.release()
+        withContext( Dispatchers.Main ) {
+            liveWallpaperEngine?.also( player::removeListener )
         }
-//        else if( Preferences.isLoggedInToDiscord() )
-//            discord.stop()
+
+        logger.d { "LiveWallpaper unregistered" }
+    }
+
+    private fun observeLikeState() {
+        coroutineScope.launch(Dispatchers.IO) {
+            player.currentMediaItemState.filterNotNull().collect {
+                Database.songTable
+                        .isLiked( it.mediaId )
+                        .collect { updateMediaControl() }
+            }
+        }
+    }
+
+    private fun downloadCurrentMediaItem() {
+        val mediaItem = player.currentMediaItem ?: return
+        val mediaId = mediaItem.mediaId
+        val isDownloaded = MyDownloadHelper.instance.downloads.value[mediaId]?.state == Download.STATE_COMPLETED
+        if( !isDownloaded ) {
+            logger.v { "Downloading current media item ($mediaId)" }
+
+            manageDownload( this, mediaItem, false )
+        } else
+            Toaster.i( R.string.info_song_already_downloaded )
+    }
+
+    /**
+     * (Re)render media control in notification area.
+     */
+    private fun updateMediaControl() {
+        coroutineScope.launch( Dispatchers.Default ) {
+            val mutButtons = mutableListOf<CommandButton>()
+
+            val firstButton by Preferences.MEDIA_NOTIFICATION_FIRST_ICON
+            PlaybackController.makeButton(this@PlayerServiceModern, player, firstButton)
+                              .also( mutButtons::add )
+            val secondButton by Preferences.MEDIA_NOTIFICATION_SECOND_ICON
+            PlaybackController.makeButton(this@PlayerServiceModern, player, secondButton)
+                              .also( mutButtons::add )
+            NotificationButtons.entries
+                .filterNot { it === firstButton || it === secondButton }
+                .map { PlaybackController.makeButton(this@PlayerServiceModern, player, it) }
+                .also( mutButtons::addAll )
+
+            val buttons = mutButtons.toList()
+            withContext( Dispatchers.Main ) {
+                mediaSession.setMediaButtonPreferences( buttons )
+            }
+>>>>>>> upstream/main
+        }
     }
 
     override fun onStartCommand( intent: Intent?, flags: Int, startId: Int ): Int {
-        if( intent?.action == ACTION_RESTART ) {
-            player.pause()
-            stopSelf()
+        logger.v { "Received command ${intent?.action}" }
+
+        when( intent?.action ) {
+            ACTION_RESTART -> {
+                player.pause()
+                stopSelf()
+            }
+            ACTION_LIKE -> {
+                val mediaItem = player.currentMediaItem
+                Database.asyncTransaction {
+                    mediaItem ?: return@asyncTransaction
+
+                    songTable.toggleLike( mediaItem.mediaId )
+                    MyDownloadHelper.autoDownloadWhenLiked( mediaItem )
+                }
+            }
+            ACTION_DOWNLOAD -> downloadCurrentMediaItem()
+            ACTION_UPDATE_MEDIA_CONTROL -> updateMediaControl()
+
+            PLAYER_ACTION_PLAY -> player.play()
+            PLAYER_ACTION_PAUSE -> player.pause()
+            PLAYER_ACTION_NEXT -> player.seekToNext()
+            PLAYER_ACTION_PREVIOUS -> player.seekToPrevious()
+            PLAYER_ACTION_CYCLE_REPEAT -> player.cycleRepeatMode()
+            PLAYER_ACTION_TOGGLE_SHUFFLE -> player.toggleShuffleMode()
+            PLAYER_ACTION_TOGGLE_RADIO -> Preferences.PLAYER_ACTION_START_RADIO.flip()
         }
 
         return super.onStartCommand(intent, flags, startId)
@@ -304,6 +359,7 @@ class PlayerServiceModern:
 
         super.onCreate()
 
+        audioHandler = AudioHandler(this, handler, player)
         volumeObserver.register()
 
         // Enable Android Auto if disabled, REQUIRE ENABLING DEV MODE IN ANDROID AUTO
@@ -330,18 +386,6 @@ class PlayerServiceModern:
             .apply { setSmallIcon( R.drawable.app_icon_monochrome ) }
             .also( ::setMediaNotificationProvider )
 
-        runCatching {
-            bitmapProvider = BitmapProvider(
-                bitmapSize = (512 * resources.displayMetrics.density).roundToInt(),
-                colorProvider = { isSystemInDarkMode ->
-                    if (isSystemInDarkMode) Color.BLACK else Color.WHITE
-                }
-            )
-        }.onFailure {
-            logger.e( it ) { "Failed init bitmap provider" }
-        }
-
-        val preferences = preferences
         MyDownloadHelper.instance = this.downloadHelper
 
 <<<<<<< HEAD
@@ -363,42 +407,28 @@ class PlayerServiceModern:
 >>>>>>> upstream/main
 
         preferences.registerOnSharedPreferenceChangeListener(this)
-
-        // Force player to add all commands available, prior to android 13
-        val forwardingPlayer =
-            object : ForwardingPlayer(player) {
-                override fun getAvailableCommands(): Player.Commands {
-                    return super.getAvailableCommands()
-                        .buildUpon()
-                        .addAllCommands()
-                        //.remove(COMMAND_SEEK_TO_PREVIOUS)
-                        //.remove(COMMAND_SEEK_TO_NEXT)
-                        .build()
-                }
-            }
+        preferences.registerOnSharedPreferenceChangeListener(audioHandler)
 
         // Build the media library session
-        mediaSession =
-            MediaLibrarySession.Builder(this, forwardingPlayer, mediaLibrarySessionCallback)
-                .setSessionActivity(
-                    PendingIntent.getActivity(
-                        this,
-                        0,
-                        Intent(this, MainActivity::class.java)
-                            .putExtra("expandPlayerBottomSheet", true),
-                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                    )
+        mediaSession = MediaLibrarySession
+            .Builder(this, player.toForwardingPlayer(), mediaLibrarySessionCallback)
+            .setSessionActivity(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    Intent(this, MainActivity::class.java)
+                        .putExtra("expandPlayerBottomSheet", true),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
-                .setBitmapLoader( CoilBitmapLoader(coroutineScope) )
-                .build()
+            )
+            .setBitmapLoader( CoilBitmapLoader(coroutineScope) )
+            .build()
 
         listener = ExoPlayerListener(
             player,
-            mediaSession,
             waitingForNetwork,
             ::sendOpenEqualizerIntent,
-            ::sendCloseEqualizerIntent,
-            ::onMediaItemTransition
+            ::sendCloseEqualizerIntent
         )
 
         player.addListener( listener )
@@ -414,73 +444,23 @@ class PlayerServiceModern:
         val controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
         controllerFuture.addListener({ controllerFuture.get() }, MoreExecutors.directExecutor())
 
-        // Download listener help to notify download change to UI
-        downloadListener = object : DownloadManager.Listener {
-            override fun onDownloadChanged(
-                downloadManager: DownloadManager,
-                download: Download,
-                finalException: Exception?
-            ) = run {
-                if (download.request.id != currentMediaItem.value?.mediaId) return@run
-                println("PlayerServiceModern onDownloadChanged current song ${currentMediaItem.value?.mediaId} state ${download.state} key ${download.request.id}")
-                updateDownloadedState()
-            }
-        }
         MyDownloadHelper.instance.downloadManager.addListener(downloadListener)
 
-        notificationActionReceiver = NotificationActionReceiver(player)
-
-
-        val filter = IntentFilter().apply {
-            addAction(Action.play.value)
-            addAction(Action.pause.value)
-            addAction(Action.next.value)
-            addAction(Action.previous.value)
-            addAction(Action.like.value)
-            addAction(Action.download.value)
-            addAction(Action.playradio.value)
-            addAction(Action.shuffle.value)
-            addAction(Action.repeat.value)
-            addAction(Action.search.value)
-        }
-
-        ContextCompat.registerReceiver(
-            this,
-            notificationActionReceiver,
-            filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-
-        // Ensure that song is updated
-        currentSong.debounce(1000).collect(coroutineScope) { song ->
-            println("PlayerServiceModern onCreate currentSong $song")
-            updateDownloadedState()
-            println("PlayerServiceModern onCreate currentSongIsDownloaded ${currentSongStateDownload.value}")
-
-            withContext(Dispatchers.Main) {
-                updateWidgets()
-            }
-        }
-
-        maybeResumePlaybackWhenDeviceConnected()
-
+        //<editor-fold desc="Preferences">
         /* Queue is saved in events without scheduling it (remove this in future)*/
         // Load persistent queue when start activity and save periodically in background
-        if ( Preferences.ENABLE_PERSISTENT_QUEUE.value ) {
+        if ( Preferences.ENABLE_PERSISTENT_QUEUE.value )
             maybeResumePlaybackOnStart()
-
-            val scheduler = Executors.newScheduledThreadPool(1)
-            scheduler.scheduleWithFixedDelay({
-                println("PlayerServiceModern onCreate savePersistentQueue")
-                listener.saveQueueToDatabase()
-            }, 0, 30, TimeUnit.SECONDS)
-
-        }
-
         if( Preferences.isLoggedInToDiscord() ) {
             val token by Preferences.DISCORD_ACCESS_TOKEN
             discord.login( token )
         }
+        if( Preferences.LIVE_WALLPAPER.value > 0 )
+            registerLiveWallpaperEngine()
+        //</editor-fold>
+        //<editor-fold desc="Low priority tasks">
+        observeLikeState()
+        //</editor-fold>
     }
 
     override fun onUpdateNotification( session: MediaSession, startInForegroundRequired: Boolean ) =
@@ -489,23 +469,6 @@ class PlayerServiceModern:
         } catch( err: Exception ) {
             logger.e( err ) { "failed to update notification" }
         }
-
-    override fun onIsPlayingChanged( isPlaying: Boolean ) {
-        wallpaperRevertJob?.cancel()
-
-
-        if (!isPlaying && Preferences.LIVE_WALLPAPER_RESET_DURATION.value != -1L) { // -1 means it should be disabled
-            wallpaperRevertJob = coroutineScope.launch {
-                delay(Preferences.LIVE_WALLPAPER_RESET_DURATION.value)
-                revertWallpaperToDefault()
-            }
-        } else {
-            if (wallpaper_cleared) {
-                wallpaper_cleared = false
-                updateWallpaper(bitmapProvider.bitmap)
-            }
-        }
-    }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession =
         mediaSession
@@ -562,8 +525,11 @@ class PlayerServiceModern:
     @UnstableApi
     override fun onDestroy() {
         runCatching {
-            listener.saveQueueToDatabase()
             volumeObserver.unregister()
+            runBlocking( Dispatchers.Default ) {
+                unregisterLiveWallpaperEngine()
+            }
+            MyDownloadHelper.instance.downloadManager.removeListener( downloadListener )
 
             stopService(intent<MyDownloadService>())
             stopService(intent<PlayerServiceModern>())
@@ -572,23 +538,13 @@ class PlayerServiceModern:
             player.stop()
             player.release()
 
-            try{
-                unregisterReceiver(notificationActionReceiver)
-            } catch (e: Exception){
-                logger.e( e ) { "onDestroy unregisterReceiver notificationActionReceiver failed!" }
-            }
-
-
+            audioHandler.unregister()
             mediaSession.release()
             cache.release()
             //downloadCache.release()
             MyDownloadHelper.instance.downloadManager.removeListener(downloadListener)
 
             listener.loudnessEnhancer?.release()
-
-            notificationManager?.cancel(NotificationId)
-            notificationManager?.cancelAll()
-            notificationManager = null
 
             coroutineScope.cancel()
 
@@ -604,125 +560,20 @@ class PlayerServiceModern:
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
         when (key) {
+            Preferences.Key.LIVE_WALLPAPER -> {
+                val currentValue by Preferences.LIVE_WALLPAPER
+                val newValue = preferences.getInt(key, 0)
 
-            Preferences.Key.RESUME_PLAYBACK_WHEN_CONNECT_TO_AUDIO_DEVICE -> maybeResumePlaybackWhenDeviceConnected()
-
-            Preferences.Key.AUDIO_SKIP_SILENCE ->
-                player.skipSilenceEnabled = sharedPreferences.getBoolean( key, Preferences.AUDIO_SKIP_SILENCE.defaultValue )
-
-            Preferences.Key.QUEUE_LOOP_TYPE ->
-                player.repeatMode = sharedPreferences.getEnum( key, Preferences.QUEUE_LOOP_TYPE.defaultValue ).type
-        }
-    }
-
-    private var audioManager: AudioManager? = null
-    private var audioDeviceCallback: AudioDeviceCallback? = null
-
-    private fun maybeResumePlaybackWhenDeviceConnected() {
-        if ( !isAtLeastAndroid6 ) return
-
-        if ( Preferences.RESUME_PLAYBACK_WHEN_CONNECT_TO_AUDIO_DEVICE.value ) {
-            if (audioManager == null)
-                audioManager = getSystemService( AUDIO_SERVICE ) as? AudioManager
-
-
-            audioDeviceCallback = object : AudioDeviceCallback() {
-                private fun canPlayMusic(audioDeviceInfo: AudioDeviceInfo): Boolean {
-                    if ( !audioDeviceInfo.isSink ) return false
-
-                    return when( audioDeviceInfo.type ) {
-                        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-                        AudioDeviceInfo.TYPE_WIRED_HEADSET,
-                        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                        AudioDeviceInfo.TYPE_USB_HEADSET        -> true
-                        else                                    -> false
+                // Topology: only make change if it goes from on to off or vice versa
+                if( newValue == 0 && currentValue != 0 )
+                    coroutineScope.launch( Dispatchers.Default ) {
+                        unregisterLiveWallpaperEngine()
                     }
-                }
-
-                override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
-                    if( player.isPlaying ) return
-
-                    if( addedDevices.any( ::canPlayMusic ) )
-                        player.play()
-                }
+                else if ( newValue > 0 && currentValue == 0 )
+                    registerLiveWallpaperEngine()
             }
 
-            audioManager?.registerAudioDeviceCallback( audioDeviceCallback, handler )
-
-        } else {
-            audioManager?.unregisterAudioDeviceCallback( audioDeviceCallback )
-            audioDeviceCallback = null
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.N)
-    private fun getFlag(type: WallpaperType): Int{
-            return when (type) {
-                WallpaperType.BOTH -> FLAG_LOCK or FLAG_SYSTEM
-                WallpaperType.LOCKSCREEN -> FLAG_LOCK
-                WallpaperType.HOME -> FLAG_SYSTEM
-                // This is intended, [WallpaperType.DISABLED] must not present at this point
-                WallpaperType.DISABLED -> throw UnsupportedOperationException("WallpaperType.DISABLED is used")
-            }
-    }
-
-    private fun updateWallpaper( bitmap: Bitmap ) {
-        val type by Preferences.LIVE_WALLPAPER
-        if( type == WallpaperType.DISABLED ) return
-
-        coroutineScope.launch( Dispatchers.Default ) {
-            val mgr = WallpaperManager.getInstance( this@PlayerServiceModern )
-            val cropRect = with( bitmap ) { centerCropToMatchScreenSize( width, height ) }
-
-            if( isAtLeastAndroid7 ) {
-                val flag = getFlag(type)
-
-                mgr.setBitmap( bitmap, cropRect, true, flag )
-            } else if( type != WallpaperType.LOCKSCREEN )
-                mgr.setBitmap( centerCropBitmap( bitmap, cropRect ) )
-        }
-    }
-
-    @MainThread
-    private fun updateBitmap() {
-        with(bitmapProvider) {
-            var newUriForLoad = player.currentMediaItem?.mediaMetadata?.artworkUri
-            if(lastUri == player.currentMediaItem?.mediaMetadata?.artworkUri) {
-                newUriForLoad = null
-            }
-
-            load(newUriForLoad) {
-                updateWidgets()
-                updateWallpaper( it )
-            }
-        }
-    }
-
-    @MainThread
-    fun updateWidgets() {
-        val status = Triple(
-            player.mediaMetadata.title.toString(),
-            player.mediaMetadata.artist.toString(),
-            player.isPlaying
-        )
-
-        val actions = Triple(
-            if( status.third ) player::pause else player::play,
-            player::seekToPrevious,
-            player::seekToNext
-        )
-
-        CoroutineScope( Dispatchers.IO ).launch {
-            // Save bitmap to file
-            val file = File( cacheDir, "widget_thumbnail.png" )
-            FileOutputStream(file).use { outStream ->
-                bitmapProvider.bitmap.compress( Bitmap.CompressFormat.PNG, 50, outStream )
-            }
-
-            withContext( Dispatchers.Default ) {
-                Widget.Vertical.update( applicationContext, actions, status, file )
-                Widget.Horizontal.update( applicationContext, actions, status, file )
-            }
+            Preferences.Key.PLAYER_ACTION_START_RADIO -> updateMediaControl()
         }
     }
 
@@ -755,94 +606,7 @@ class PlayerServiceModern:
         ) player.play()
     }
 
-    private fun revertWallpaperToDefault() {
-        val type by Preferences.LIVE_WALLPAPER
-        if (type == WallpaperType.DISABLED) return
-        coroutineScope.launch(Dispatchers.IO) {
-            val mgr = WallpaperManager.getInstance(this@PlayerServiceModern)
-            try {
-                if (isAtLeastAndroid7) {
-                    mgr.clear(getFlag(type))
-                } else {
-                    mgr.clear()
-                }
-                wallpaper_cleared = true
-            } catch (e: IOException) {
-                Toaster.e("Failed to revert wallpaper")
-            }
-        }
-    }
-
-    fun updateDownloadedState() {
-        if (currentSong.value == null) return
-        val mediaId = currentSong.value!!.id
-        val downloads = MyDownloadHelper.instance.downloads.value
-        currentSongStateDownload.value = downloads[mediaId]?.state ?: Download.STATE_STOPPED
-        /*
-        if (downloads[currentSong.value?.id]?.state == Download.STATE_COMPLETED) {
-            currentSongIsDownloaded.value = true
-        } else {
-            currentSongIsDownloaded.value = false
-        }
-        */
-        println("PlayerServiceModern updateDownloadedState downloads count ${downloads.size} currentSongIsDownloaded ${currentSong.value?.id}")
-        listener.updateMediaControl( this@PlayerServiceModern, player )
-    }
-
-    inner class NotificationActionReceiver(private val player: StatefulPlayer) : BroadcastReceiver() {
-        @ExperimentalCoroutinesApi
-        @FlowPreview
-        override fun onReceive(context: Context, intent: Intent) {
-            when ( intent.action ) {
-                Action.pause.value      -> player.pause()
-                Action.play.value       -> player.play()
-                Action.next.value       -> player.playNext()
-                Action.previous.value   -> player.playPrevious()
-                Action.like.value       -> mediaLibrarySessionCallback.toggleLike( player )
-                Action.download.value   -> player.downloadCurrentMediaItem()
-                Action.playradio.value  -> player.startRadio()
-                Action.shuffle.value    -> player.toggleShuffleMode()
-                Action.search.value     -> mediaLibrarySessionCallback.onSearch()
-                Action.repeat.value     -> player.cycleRepeatMode()
-            }
-        }
-    }
-
-    @JvmInline
-    value class Action(val value: String) {
-
-        val pendingIntent: PendingIntent
-            get() {
-                val context: Context by inject(Context::class.java)
-
-                return PendingIntent.getBroadcast(
-                    context,
-                    100,
-                    Intent(value).setPackage(context.packageName),
-                    PendingIntent.FLAG_UPDATE_CURRENT.or(if (isAtLeastAndroid6) PendingIntent.FLAG_IMMUTABLE else 0)
-                )
-            }
-
-        companion object {
-
-            val pause = Action("it.fast4x.rimusic.pause")
-            val play = Action("it.fast4x.rimusic.play")
-            val next = Action("it.fast4x.rimusic.next")
-            val previous = Action("it.fast4x.rimusic.previous")
-            val like = Action("it.fast4x.rimusic.like")
-            val download = Action("it.fast4x.rimusic.download")
-            val playradio = Action("it.fast4x.rimusic.playradio")
-            val shuffle = Action("it.fast4x.rimusic.shuffle")
-            val search = Action("it.fast4x.rimusic.search")
-            val repeat = Action("it.fast4x.rimusic.repeat")
-
-        }
-    }
-
     companion object {
-        const val NotificationId = 1001
-        const val NotificationChannelId = "default_channel_id"
-
         const val SleepTimerNotificationId = 1002
         const val SleepTimerNotificationChannelId = "sleep_timer_channel_id"
 
@@ -856,8 +620,35 @@ class PlayerServiceModern:
         const val PLAYLIST = "playlist"
         const val SEARCHED = "searched"
         const val ACTION_RESTART = "restart"
-
-        const val CACHE_DIRNAME = "exo_cache"
+        const val ACTION_DOWNLOAD = "DOWNLOAD"
+        const val ACTION_LIKE = "LIKE"
+        const val ACTION_UPDATE_MEDIA_CONTROL = "UPDATE_MEDIA_CONTROL"
+        //<editor-fold desc="Player actions">
+        const val PLAYER_ACTION_PLAY = "PLAYER_PLAY"
+        const val PLAYER_ACTION_PAUSE = "PLAYER_PAUSE"
+        const val PLAYER_ACTION_NEXT = "PLAYER_NEXT"
+        const val PLAYER_ACTION_PREVIOUS = "PLAYER_PREVIOUS"
+        const val PLAYER_ACTION_CYCLE_REPEAT = "PLAYER_CYCLE_REPEAT"
+        const val PLAYER_ACTION_TOGGLE_SHUFFLE = "PLAYER_TOGGLE_SHUFFLE"
+        const val PLAYER_ACTION_TOGGLE_RADIO = "PLAYER_TOGGLE_RADIO"
+        //</editor-fold>
     }
 
+    private inner class DownloadStateListener : DownloadManager.Listener {
+
+        override fun onDownloadChanged(
+            downloadManager: DownloadManager,
+            download: Download,
+            finalException: java.lang.Exception?
+        ) {
+            val reqId = download.request.id
+            val currId = player.currentMediaItem?.mediaId
+
+            if( currId == reqId )
+                updateMediaControl()
+        }
+
+        override fun onDownloadRemoved( downloadManager: DownloadManager, download: Download ) =
+            onDownloadChanged( downloadManager, download, null )
+    }
 }

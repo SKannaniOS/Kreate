@@ -1,8 +1,12 @@
 package app.kreate.android.widget
 
 import android.content.Context
-import android.graphics.BitmapFactory
+import android.content.Intent
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -12,11 +16,11 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
-import androidx.glance.LocalContext
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.action.actionStartService
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
@@ -28,23 +32,35 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.text.Text
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import app.kreate.android.R
 import app.kreate.android.drawable.AppIcon
-import app.kreate.util.cleanPrefix
+import app.kreate.di.THUMBNAIL_SIZE
+import app.kreate.util.thumbnail
+import co.touchlab.kermit.Logger
+import coil3.asImage
+import coil3.imageLoader
+import coil3.request.ErrorResult
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.placeholder
+import coil3.toBitmap
 import it.fast4x.rimusic.MainActivity
-import java.io.File
+import it.fast4x.rimusic.service.modern.PlayerServiceModern
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import me.knighthat.utils.Toaster
+import org.jetbrains.annotations.Contract
+
 
 sealed class Widget: GlanceAppWidget() {
 
     val songTitleKey = stringPreferencesKey("songTitleKey")
     val songArtistKey = stringPreferencesKey("songArtistKey")
     val isPlayingKey = booleanPreferencesKey("isPlayingKey")
-    var bitmapPath = stringPreferencesKey("thumbnailPathKey")
 
-    private var onPlayPauseAction: () -> Unit = {}
-    private var onPreviousAction: () -> Unit = {}
-    private var onNextAction: () -> Unit = {}
+    private var bitmap: Bitmap? by mutableStateOf(null)
 
     @Composable
     protected abstract fun Content( context: Context )
@@ -52,8 +68,7 @@ sealed class Widget: GlanceAppWidget() {
     @Composable
     @GlanceComposable
     protected fun Thumbnail( modifier: GlanceModifier ) {
-        val bitmap = currentState( bitmapPath )?.let( BitmapFactory::decodeFile )
-            ?: AppIcon.bitmap( LocalContext.current )
+        val bitmap = bitmap ?: return
         Image(
             provider = ImageProvider( bitmap ),
             contentDescription = "cover",
@@ -63,13 +78,19 @@ sealed class Widget: GlanceAppWidget() {
 
     @Composable
     @GlanceComposable
-    protected fun Controller() {
+    protected fun Controller( context: Context ) {
         val isPlaying = currentState( isPlayingKey ) ?: false
 
         Image(
             provider = ImageProvider( R.drawable.play_skip_back ),
             contentDescription = "back",
-            modifier = GlanceModifier.clickable( onPreviousAction )
+            modifier = GlanceModifier.clickable(
+                actionStartService(
+                    Intent(context, PlayerServiceModern::class.java).apply {
+                        action = PlayerServiceModern.PLAYER_ACTION_PREVIOUS
+                    }
+                )
+            )
         )
 
         Image(
@@ -77,41 +98,78 @@ sealed class Widget: GlanceAppWidget() {
                 if ( isPlaying ) R.drawable.pause else R.drawable.play
             ),
             contentDescription = "play/pause",
-            modifier = GlanceModifier.padding(horizontal = 20.dp)
-                                     .clickable( onPlayPauseAction )
+            modifier = GlanceModifier.padding(horizontal = 20.dp).clickable(
+                actionStartService(
+                    Intent(context, PlayerServiceModern::class.java).apply {
+                        action = if( isPlaying ) PlayerServiceModern.PLAYER_ACTION_PAUSE else PlayerServiceModern.PLAYER_ACTION_PLAY
+                    }
+                )
+            )
         )
 
         Image(
             provider = ImageProvider( R.drawable.play_skip_forward ),
             contentDescription = "next",
-            modifier = GlanceModifier.clickable( onNextAction )
+            modifier = GlanceModifier.clickable(
+                actionStartService(
+                    Intent(context, PlayerServiceModern::class.java).apply {
+                        action = PlayerServiceModern.PLAYER_ACTION_NEXT
+                    }
+                )
+            )
         )
+    }
+
+    @Contract("_,null->null")
+    private suspend fun getThumbnail( context: Context, artworkUri: String? ): Bitmap? {
+        if( artworkUri == null ) return null
+
+        val request = ImageRequest.Builder(context)
+            .data( artworkUri.thumbnail(THUMBNAIL_SIZE) )
+            .diskCacheKey( artworkUri )
+            .placeholder( R.drawable.loader )
+            .fallback {
+                AppIcon.bitmap(context).asImage()
+            }
+            .error {
+                AppIcon.bitmap(context).asImage()
+            }
+            .build()
+        val result = withContext( Dispatchers.IO ) {
+            context.imageLoader.execute( request )
+        }
+
+        return if( result is ErrorResult ) {
+            Logger.e( "", result.throwable, this::class.java.simpleName )
+            Toaster.e( R.string.error_failed_to_update_widget )
+            null
+        } else
+            (result as SuccessResult).image.toBitmap()
     }
 
     @UnstableApi
     suspend fun update(
         context: Context,
-        actions: Triple<() -> Unit, () -> Unit, () -> Unit>,
-        status: Triple<String, String, Boolean>,
-        bitmapFile: File
+        isPlaying: Boolean?,
+        metadata: MediaMetadata?
     ) {
-        val glanceId =
-            GlanceAppWidgetManager(context).getGlanceIds(this::class.java).firstOrNull() ?: return
+        val appContext = context.applicationContext
+        val artworkUri = metadata?.artworkUri?.toString()
+        bitmap = getThumbnail( context, artworkUri )
+        val glanceId = GlanceAppWidgetManager(appContext)
+            .getGlanceIds(this::class.java)
+            .firstOrNull() ?: return
 
-        updateAppWidgetState(context, glanceId) {
-            it[songTitleKey] = cleanPrefix( status.first )
-            it[songArtistKey] = cleanPrefix( status.second )
-            it[isPlayingKey] = status.third
-
-            if( it[bitmapPath].isNullOrEmpty() )
-                it[bitmapPath] = bitmapFile.absolutePath
+        updateAppWidgetState(appContext, glanceId) {
+            it[songTitleKey] = metadata?.title.toString()
+            it[songArtistKey] = metadata?.artist.toString()
+            if( isPlaying != null )
+                it[isPlayingKey] = isPlaying
         }
 
-        onPlayPauseAction = actions.first
-        onPreviousAction = actions.second
-        onNextAction = actions.third
+        update(appContext, glanceId)
 
-        update(context, glanceId)
+        Logger.d( tag = this::class.java.simpleName ) { "Widget updated" }
     }
 
     override suspend fun provideGlance( context: Context, id: GlanceId ) {
@@ -146,7 +204,7 @@ sealed class Widget: GlanceAppWidget() {
                         modifier = GlanceModifier.padding( vertical = 12.dp ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalAlignment = Alignment.CenterHorizontally
-                    ) { Controller() }
+                    ) { Controller( context ) }
                 }
             }
         }
@@ -172,7 +230,7 @@ sealed class Widget: GlanceAppWidget() {
                                              .padding( vertical = 12.dp ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally,
-                ) { Controller() }
+                ) { Controller( context ) }
 
                 Thumbnail( GlanceModifier.padding( horizontal = 5.dp) )
             }

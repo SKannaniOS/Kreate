@@ -1008,6 +1008,7 @@
     <string name="error_invalid_path">Ruta inválida</string>
     <string name="description_validate_url">Validar url</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
     <string name="disabled">disabled</string>
     <string name="settings_live_wallpaper_reset_warning"> WARNING: this will switch back to your manufacturer’s default wallpaper. Unfortunately it is difficult to revert to your previous wallpaper</string>
     <string name="ok">ok</string>
@@ -1016,6 +1017,9 @@
 =======
 =======
     <string name="disabled">desactivado</string>
+=======
+    <string name="word_disabled">desactivado</string>
+>>>>>>> upstream/main
     <string name="settings_live_wallpaper_reset_warning"> AVISO: isto volverá ao fondo de pantalla predeterminado do fabricante. Desafortunadamente, é difícil volver ao fondo de pantalla anterior</string>
     <string name="ok">aceptar</string>
 <<<<<<< HEAD

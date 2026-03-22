@@ -1,7 +1,9 @@
 package app.kreate.android.service.player
 
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Timeline
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import app.kreate.database.models.Song
 import it.fast4x.innertube.models.NavigationEndpoint
@@ -14,6 +16,7 @@ interface StatefulPlayer : ExoPlayer {
     val currentMediaItemState: StateFlow<MediaItem?>
     val currentTimelineState: StateFlow<Timeline>
     val currentWindowState: StateFlow<Timeline.Window?>
+    val isPlayingState: StateFlow<Boolean>
 
     fun isLoadingRadio(): Boolean
 
@@ -58,11 +61,6 @@ interface StatefulPlayer : ExoPlayer {
     fun toggleShuffleMode()
 
     /**
-     * Queue download for this media.
-     */
-    fun downloadCurrentMediaItem()
-
-    /**
      * Starts a countdown internally.
      *
      * When it reaches **0**, player will stop playing music
@@ -78,4 +76,7 @@ interface StatefulPlayer : ExoPlayer {
      * @return remaining time of **sleep timer**. `null` if **sleep timer** isn't active
      */
     fun sleepTimerRemaining(): Flow<Long?>
+
+    @UnstableApi
+    fun toForwardingPlayer(): ForwardingPlayer
 }
