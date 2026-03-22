@@ -9,11 +9,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
+import app.kreate.android.Preferences
 import app.kreate.database.models.Song
+import app.kreate.di.PrefType
 import co.touchlab.kermit.Logger
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.requests.HomePage
 import kotlinx.serialization.json.Json
+import org.koin.compose.koinInject
 
 const val quickPicsTrendingSongKey = "quickPicsTrendingSong"
 const val quickPicsRelatedPageKey = "quickPicsRelatedPage"
@@ -38,24 +41,21 @@ inline fun <reified T : Enum<T>> SharedPreferences.Editor.putEnum(
 ): SharedPreferences.Editor =
     putString(key, value.name)
 
-val Context.preferences: SharedPreferences
-    get() = getSharedPreferences("preferences", Context.MODE_PRIVATE)
-
 @Composable
 fun rememberPreference(key: String, defaultValue: Song?): MutableState<Song?> {
-    val context = LocalContext.current
+    val preferences: SharedPreferences = koinInject(PrefType.DEFAULT)
     val json = Json.encodeToString(defaultValue)
     return remember {
         mutableStatePreferenceOf(
             try {
-                context.preferences.getString(key, json)
+                preferences.getString(key, json)
                     ?.let { Json.decodeFromString<Song>(it) }
             } catch (e: Exception) {
                 Logger.e("RememberPreference RelatedPage Error", e, "LegacyPreferences" )
                 null
             }
         ) {
-            context.preferences.edit { putString(
+            preferences.edit { putString(
                 key,
                 Json.encodeToString(it)
             ) }
@@ -65,19 +65,19 @@ fun rememberPreference(key: String, defaultValue: Song?): MutableState<Song?> {
 
 @Composable
 fun rememberPreference(key: String, defaultValue: Innertube.DiscoverPage?): MutableState<Innertube.DiscoverPage?> {
-    val context = LocalContext.current
+    val preferences: SharedPreferences = koinInject(PrefType.DEFAULT)
     val json = Json.encodeToString(defaultValue)
     return remember {
         mutableStatePreferenceOf(
             try {
-                context.preferences.getString(key, json)
+                preferences.getString(key, json)
                     ?.let { Json.decodeFromString<Innertube.DiscoverPage>(it) }
             } catch (e: Exception) {
                 Logger.e("RememberPreference DiscoverPage Error", e, "LegacyPreferences" )
                 null
             }
         ) {
-            context.preferences.edit { putString(
+            preferences.edit { putString(
                 key,
                 Json.encodeToString(it)
             ) }
@@ -87,19 +87,19 @@ fun rememberPreference(key: String, defaultValue: Innertube.DiscoverPage?): Muta
 
 @Composable
 fun rememberPreference(key: String, defaultValue: Innertube.ChartsPage?): MutableState<Innertube.ChartsPage?> {
-    val context = LocalContext.current
+    val preferences: SharedPreferences = koinInject(PrefType.DEFAULT)
     val json = Json.encodeToString(defaultValue)
     return remember {
         mutableStatePreferenceOf(
             try {
-                context.preferences.getString(key, json)
+                preferences.getString(key, json)
                     ?.let { Json.decodeFromString<Innertube.ChartsPage>(it) }
             } catch (e: Exception) {
                 Logger.e("RememberPreference ChartsPage Error", e, "LegacyPreferences" )
                 null
             }
         ) {
-            context.preferences.edit { putString(
+            preferences.edit { putString(
                 key,
                 Json.encodeToString(it)
             ) }
@@ -109,19 +109,19 @@ fun rememberPreference(key: String, defaultValue: Innertube.ChartsPage?): Mutabl
 
 @Composable
 fun rememberPreference(key: String, defaultValue: Innertube.RelatedPage?): MutableState<Innertube.RelatedPage?> {
-    val context = LocalContext.current
+    val preferences: SharedPreferences = koinInject(PrefType.DEFAULT)
     val json = Json.encodeToString(defaultValue)
     return remember {
         mutableStatePreferenceOf(
             try {
-                context.preferences.getString(key, json)
+                preferences.getString(key, json)
                     ?.let { Json.decodeFromString<Innertube.RelatedPage>(it) }
             } catch (e: Exception) {
                 Logger.e("RememberPreference RelatedPage Error", e, "LegacyPreferences" )
                 null
             }
         ) {
-            context.preferences.edit { putString(
+            preferences.edit { putString(
                 key,
                 Json.encodeToString(it)
             ) }
@@ -131,31 +131,23 @@ fun rememberPreference(key: String, defaultValue: Innertube.RelatedPage?): Mutab
 
 @Composable
 fun rememberPreference(key: String, defaultValue: HomePage?): MutableState<HomePage?> {
-    val context = LocalContext.current
+    val preferences: SharedPreferences = koinInject(PrefType.DEFAULT)
     val json = Json.encodeToString(defaultValue)
     return remember {
         mutableStatePreferenceOf(
             try {
-                context.preferences.getString(key, json)
+                preferences.getString(key, json)
                     ?.let { Json.decodeFromString<HomePage>(it) }
             } catch (e: Exception) {
                 Logger.e("RememberPreference HomePage Error", e, "LegacyPreferences" )
                 null
             }
         ) {
-            context.preferences.edit { putString(
+            preferences.edit { putString(
                 key,
                 Json.encodeToString(it)
             ) }
         }
-    }
-}
-
-fun clearPreference(context: Context, key: String): Unit {
-    try {
-        context.preferences.edit { remove(key) }
-    } catch (e: Exception) {
-        Logger.e("ClearPreference Error", e, "LegacyPreferences" )
     }
 }
 

@@ -21,6 +21,7 @@ import app.kreate.android.service.player.PlaybackController
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.service.player.VolumeObserver
 import app.kreate.di.CacheType
+import app.kreate.di.PrefType
 import co.touchlab.kermit.Logger
 import io.ktor.client.HttpClient
 import it.fast4x.innertube.Innertube
@@ -28,7 +29,6 @@ import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MainActivity
 import it.fast4x.rimusic.enums.NotificationButtons
 import it.fast4x.rimusic.utils.CoilBitmapLoader
-import it.fast4x.rimusic.utils.preferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,6 +55,7 @@ class PlaybackService:
     private val discord: Discord by inject()
     private val player: StatefulPlayer by inject()
     private val volumeObserver: VolumeObserver by inject()
+    private val preferences: SharedPreferences by inject(PrefType.DEFAULT)
     private val logger = Logger.withTag( this::class.java.simpleName )
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val handler = Handler(Looper.getMainLooper())
