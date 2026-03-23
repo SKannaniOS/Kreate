@@ -1,21 +1,15 @@
 package it.fast4x.rimusic
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.view.WindowManager
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
@@ -50,7 +44,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,11 +59,12 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -78,20 +72,33 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.navigation.compose.rememberNavController
 import androidx.palette.graphics.Palette
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import app.kreate.android.AccelSensorListener
 import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
+import app.kreate.android.service.playback.PlaybackService
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.service.updater.UpdatePlugins
 import app.kreate.android.themed.common.component.dialog.CrashReportDialog
+import app.kreate.android.worker.SyncDownloadWorker
 import app.kreate.database.models.PersistentQueue
+import app.kreate.di.PrefType
 import co.touchlab.kermit.Logger
 import coil3.imageLoader
 import coil3.request.allowHardware
 import coil3.toBitmap
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.MoreExecutors
 import com.kieronquinn.monetcompat.core.MonetActivityAccessException
 import com.kieronquinn.monetcompat.core.MonetCompat
 import com.kieronquinn.monetcompat.interfaces.MonetColorsChangedListener
@@ -113,8 +120,6 @@ import it.fast4x.rimusic.enums.PlayerBackgroundColors
 import it.fast4x.rimusic.enums.ThumbnailRoundness
 import it.fast4x.rimusic.extensions.pip.PipEventContainer
 import it.fast4x.rimusic.extensions.pip.PipModuleContainer
-import it.fast4x.rimusic.service.MyDownloadHelper
-import it.fast4x.rimusic.service.modern.PlayerServiceModern
 import it.fast4x.rimusic.ui.components.CustomModalBottomSheet
 import it.fast4x.rimusic.ui.components.LocalMenuState
 import it.fast4x.rimusic.ui.components.themed.CrossfadeContainer
@@ -135,14 +140,11 @@ import it.fast4x.rimusic.utils.LocalMonetCompat
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.forcePlay
 import it.fast4x.rimusic.utils.getEnum
-import it.fast4x.rimusic.utils.intent
 import it.fast4x.rimusic.utils.invokeOnReady
 import it.fast4x.rimusic.utils.isAtLeastAndroid6
 import it.fast4x.rimusic.utils.isAtLeastAndroid8
 import it.fast4x.rimusic.utils.isVideo
 import it.fast4x.rimusic.utils.loadAppLog
-import it.fast4x.rimusic.utils.playNext
-import it.fast4x.rimusic.utils.preferences
 import it.fast4x.rimusic.utils.resize
 import it.fast4x.rimusic.utils.setDefaultPalette
 import it.fast4x.rimusic.utils.textCopyToClipboard
@@ -155,33 +157,21 @@ import me.knighthat.utils.Toaster
 import org.koin.compose.koinInject
 import org.koin.java.KoinJavaComponent.inject
 import java.util.Locale
-import java.util.Objects
-import kotlin.math.sqrt
+import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 
 @UnstableApi
 class
 MainActivity :
-//MonetCompatActivity(),
     AppCompatActivity(),
-    MonetColorsChangedListener
-//,PersistMapOwner
+    MonetColorsChangedListener,
+    SharedPreferences.OnSharedPreferenceChangeListener
 {
-    private val serviceConnection = object : ServiceConnection {
-
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {}
-
-        override fun onServiceDisconnected(name: ComponentName?) {}
-    }
-
     private var intentUriData by mutableStateOf<Uri?>(null)
 
     private var sensorManager: SensorManager? = null
-    private var acceleration = 0f
-    private var currentAcceleration = 0f
-    private var lastAcceleration = 0f
-    private var shakeCounter = 0
+    private var accelSensorListener: AccelSensorListener? = null
 
     private var _monet: MonetCompat? by mutableStateOf(null)
     private val monet get() = _monet ?: throw MonetActivityAccessException()
@@ -189,14 +179,38 @@ MainActivity :
     private val pipState: MutableState<Boolean> = mutableStateOf(false)
     private val logger = Logger.withTag( this::class.java.simpleName )
 
+    private lateinit var playbackController: ListenableFuture<MediaController>
+    private lateinit var workManager: WorkManager
+
+    private fun registerAccelSensor() {
+        accelSensorListener = AccelSensorListener()
+        sensorManager?.registerListener(
+            accelSensorListener,
+            sensorManager?.getDefaultSensor( Sensor.TYPE_ACCELEROMETER ),
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+    }
+
+    private fun unregisterAccelSensor() {
+        if( accelSensorListener != null )
+            sensorManager?.unregisterListener( accelSensorListener )
+    }
+
     override fun onStart() {
         super.onStart()
 
-        runCatching {
-            bindService(intent<PlayerServiceModern>(), serviceConnection, Context.BIND_AUTO_CREATE)
-        }.onFailure {
-            logger.e( it ) { "Failed to bind PlayerServiceModern" }
-        }
+        // Always get new controller on start
+        val component = ComponentName(this, PlaybackService::class.java)
+        val sessionToken = SessionToken(this, component)
+        playbackController = MediaController.Builder(this, sessionToken).buildAsync()
+        playbackController.addListener( playbackController::get, MoreExecutors.directExecutor())
+    }
+
+    override fun onStop() {
+        super.onStop()
+
+        if( ::playbackController.isInitialized )
+            playbackController.also( MediaController::releaseFuture )
     }
 
     @ExperimentalTextApi
@@ -204,6 +218,9 @@ MainActivity :
     @ExperimentalComposeUiApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val playbackIntent = Intent(this, PlaybackService::class.java)
+        ContextCompat.startForegroundService(this, playbackIntent)
 
         UpdatePlugins.execute( this )
 
@@ -234,16 +251,8 @@ MainActivity :
             startApp()
         }
 
-        if ( Preferences.AUDIO_SHAKE_TO_SKIP.value ) {
-            sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-            Objects.requireNonNull(sensorManager)
-                ?.registerListener(
-                    sensorListener,
-                    sensorManager!!
-                        .getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-                    SensorManager.SENSOR_DELAY_NORMAL
-                )
-        }
+        this.sensorManager = getSystemService<SensorManager>()
+        this.workManager = WorkManager.getInstance( applicationContext )
     }
 
 
@@ -255,27 +264,6 @@ MainActivity :
         println("MainActivity.onPictureInPictureModeChanged isInPictureInPictureMode: $isInPictureInPictureMode")
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
 
-    }
-
-
-    @Composable
-    fun ThemeApp(
-        isDark: Boolean = false,
-        content: @Composable () -> Unit
-    ) {
-        val view = LocalView.current
-        if (!view.isInEditMode) {
-            SideEffect {
-                (view.context as Activity).window.let { window ->
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars =
-                        !isDark
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars =
-                        !isDark
-                }
-            }
-
-        }
-        content()
     }
 
     @SuppressLint("UnusedBoxWithConstraintsScope")
@@ -314,6 +302,7 @@ MainActivity :
             window.addFlags( WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON )
 
         setContent {
+            val preferences: SharedPreferences = koinInject(PrefType.DEFAULT)
             val colorPaletteMode by Preferences.THEME_MODE
             val isPicthBlack = colorPaletteMode == ColorPaletteMode.PitchBlack
 
@@ -586,6 +575,7 @@ MainActivity :
 
                 with(preferences) {
                     registerOnSharedPreferenceChangeListener(listener)
+                    registerOnSharedPreferenceChangeListener( this@MainActivity )
 
                     val colorPaletteName by Preferences.COLOR_PALETTE
                     if (colorPaletteName == ColorPaletteName.Dynamic) {
@@ -596,7 +586,8 @@ MainActivity :
                     }
 
                     onDispose {
-                        unregisterOnSharedPreferenceChangeListener(listener)
+                        unregisterOnSharedPreferenceChangeListener( listener )
+                        unregisterOnSharedPreferenceChangeListener( this@MainActivity )
                     }
                 }
             }
@@ -702,7 +693,6 @@ MainActivity :
                             LocalRippleConfiguration provides rippleConfiguration,
                             LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
                             LocalLayoutDirection provides LayoutDirection.Ltr,
-                            LocalDownloadHelper provides MyDownloadHelper,
                             LocalPlayerSheetState provides playerState,
                             LocalMonetCompat provides monet,
                         ) {
@@ -926,62 +916,42 @@ MainActivity :
         }
     }
 
-
-    private val sensorListener: SensorEventListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-
-            if ( Preferences.AUDIO_SHAKE_TO_SKIP.value ) {
-                // Fetching x,y,z values
-                val x = event.values[0]
-                val y = event.values[1]
-                val z = event.values[2]
-                lastAcceleration = currentAcceleration
-
-                // Getting current accelerations
-                // with the help of fetched x,y,z values
-                currentAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
-                val delta: Float = currentAcceleration - lastAcceleration
-                acceleration = acceleration * 0.9f + delta
-
-                // Display a Toast message if
-                // acceleration value is over 12
-                if (acceleration > 12) {
-                    shakeCounter++
-                    //Toast.makeText(applicationContext, "Shake event detected", Toast.LENGTH_SHORT).show()
-                }
-                if (shakeCounter >= 1) {
-                    //Toast.makeText(applicationContext, "Shaked $shakeCounter times", Toast.LENGTH_SHORT).show()
-                    shakeCounter = 0
-                    inject<StatefulPlayer>(StatefulPlayer::class.java).value.playNext()
-                }
-
-            }
-
-        }
-
-        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
-    }
-
     override fun onResume() {
         super.onResume()
-        runCatching {
-            sensorManager?.registerListener(
-                sensorListener, sensorManager!!.getDefaultSensor(
-                    Sensor.TYPE_ACCELEROMETER
-                ), SensorManager.SENSOR_DELAY_NORMAL
-            )
-        }.onFailure {
-            logger.e( it ) { "onResume failed" }
-        }
+
+        if( Preferences.AUDIO_SHAKE_TO_SKIP.value )
+            registerAccelSensor()
+
+        //<editor-fold desc="Start sync downloads worker periodically">
+        workManager.enqueueUniquePeriodicWork(
+           SyncDownloadWorker::class.java.name,
+           ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<SyncDownloadWorker>(
+                30, TimeUnit.MINUTES,
+                5, TimeUnit.MINUTES
+            ).build()
+        )
+        workManager.enqueueUniqueWork(
+            SyncDownloadWorker::class.java.simpleName,
+            ExistingWorkPolicy.KEEP,
+            OneTimeWorkRequestBuilder<SyncDownloadWorker>().build()
+        )
+        //</editor-fold>
     }
 
     override fun onPause() {
         super.onPause()
-        runCatching {
-            sensorListener.let { sensorManager?.unregisterListener(it) }
-        }.onFailure {
-            logger.e( it ) { "onPause failed" }
-        }
+
+        unregisterAccelSensor()
+
+        //<editor-fold desc="Cancel workers">
+        // Database won't be updated in background to save resources
+        // Once app becomes foreground, new worker will be reinstated
+        workManager.cancelUniqueWork(SyncDownloadWorker::class.java.name)
+        // Make sure the worker run until completion if user opens the app
+        // then closes it immediately
+        workManager.cancelUniqueWork(SyncDownloadWorker::class.java.simpleName)
+        //</editor-fold>
     }
 
     @UnstableApi
@@ -1003,10 +973,8 @@ MainActivity :
                 //  there's some MediaItems left in the queue .
                 clearMediaItems()
             }
-            // Unbind service (making sure there's no connection with the service)
-            unbindService( serviceConnection )
             // Stop service (release resources)
-            val intent = Intent(this, PlayerServiceModern::class.java)
+            val intent = Intent(this, PlaybackService::class.java)
             stopService( intent )
 
             logger.d { "Successfully stop player and unbind PlayerServiceModern service" }
@@ -1075,12 +1043,24 @@ MainActivity :
         }
     }
 
+    /*
+            SharedPreferences listener
+     */
 
+    override fun onSharedPreferenceChanged( pref: SharedPreferences, key: String? ) {
+        when( key ) {
+            Preferences.Key.AUDIO_SHAKE_TO_SKIP -> {
+                val isEnabled = pref.getBoolean(key, false)
+                if( isEnabled )
+                    registerAccelSensor()
+                else
+                    unregisterAccelSensor()
+            }
+        }
+    }
 }
 
 val LocalPlayerAwareWindowInsets = staticCompositionLocalOf<WindowInsets> { TODO() }
-
-val LocalDownloadHelper = staticCompositionLocalOf<MyDownloadHelper> { error("No Downloader provided") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 val LocalPlayerSheetState =

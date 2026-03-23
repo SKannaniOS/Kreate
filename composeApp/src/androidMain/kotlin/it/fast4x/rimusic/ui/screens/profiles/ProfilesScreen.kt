@@ -1,6 +1,5 @@
 package it.fast4x.rimusic.ui.screens.profiles
 
-import android.app.Activity
 import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,8 +33,6 @@ import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import it.fast4x.rimusic.colorPalette
-import it.fast4x.rimusic.service.MyDownloadService
-import it.fast4x.rimusic.service.modern.PlayerServiceModern
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.Skeleton
 import it.fast4x.rimusic.ui.components.themed.ConfirmationDialog
@@ -45,11 +42,9 @@ import it.fast4x.rimusic.ui.components.themed.HeaderWithIcon
 import it.fast4x.rimusic.ui.components.themed.InputTextDialog
 import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.utils.center
-import it.fast4x.rimusic.utils.intent
 import it.fast4x.rimusic.utils.isAtLeastAndroid7
 import it.fast4x.rimusic.utils.medium
 import it.fast4x.rimusic.utils.semiBold
-import org.koin.java.KoinJavaComponent.inject
 import java.io.BufferedReader
 import java.io.File
 import kotlin.system.exitProcess
@@ -232,14 +227,6 @@ private fun changeProfile(profile: String) {
 
     // Unload the preferences to save all changes
     Preferences.unload()
-
-    val context: Context by inject(Context::class.java)
-
-    context.stopService( context.intent<PlayerServiceModern>() )
-    context.stopService( context.intent<MyDownloadService>() )
-
-    // Close other activities
-    (context as? Activity)?.finishAffinity()
 
     // Close app with exit 0 notify that no problem occurred
     exitProcess( 0 )

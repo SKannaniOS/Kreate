@@ -1,4 +1,4 @@
-package it.fast4x.rimusic.service.modern
+package app.kreate.android.service.playback
 
 import android.content.ContentResolver
 import android.content.Context
@@ -27,7 +27,9 @@ import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import app.kreate.android.Preferences
 import app.kreate.android.R
-import app.kreate.android.service.player.ExoPlayerListener
+import app.kreate.android.service.download.CacheState
+import app.kreate.constant.SongSortBy
+import app.kreate.constant.SortOrder
 import app.kreate.database.ext.FormatWithSong
 import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
@@ -45,19 +47,12 @@ import it.fast4x.innertube.utils.from
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MainActivity
 import it.fast4x.rimusic.enums.StatisticsType
-import it.fast4x.rimusic.service.MyDownloadHelper
-import it.fast4x.rimusic.service.modern.MediaSessionConstants.ID_CACHED
-import it.fast4x.rimusic.service.modern.MediaSessionConstants.ID_DOWNLOADED
-import it.fast4x.rimusic.service.modern.MediaSessionConstants.ID_FAVORITES
-import it.fast4x.rimusic.service.modern.MediaSessionConstants.ID_ONDEVICE
-import it.fast4x.rimusic.service.modern.MediaSessionConstants.ID_TOP
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.asSong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.plus
@@ -65,15 +60,16 @@ import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
+
 @UnstableApi
 class MediaLibrarySessionCallback(
     private val context: Context,
 ) : MediaLibrarySession.Callback, KoinComponent {
 
     private val cache: Cache by inject(CacheType.CACHE)
+    private val cacheState: CacheState by inject()
 
     private val scope = CoroutineScope(Dispatchers.Main) + Job()
-    lateinit var listener: ExoPlayerListener
     var searchedSongs: List<Song> = emptyList()
 
     override fun onConnect(
@@ -127,14 +123,14 @@ class MediaLibrarySessionCallback(
             }?.getOrNull() ?: emptyList()
 
             val resultList = searchedSongs.map {
-                it.toMediaItem(PlayerServiceModern.SEARCHED)
+                it.toMediaItem(Tree.SEARCH_RESULTS)
             }
             return@runBlocking Futures.immediateFuture(LibraryResult.ofItemList(resultList, params))
         }
 
         return Futures.immediateFuture(LibraryResult.ofItemList(searchedSongs.map {
             it.toMediaItem(
-                PlayerServiceModern.SEARCHED
+                Tree.SEARCH_RESULTS
             )
         }, params))
     }
@@ -152,7 +148,7 @@ class MediaLibrarySessionCallback(
                     .setFlags( FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_CLEAR_TASK )
                 context.startActivity(  intent )
             } else {
-                val intent = Intent(context, PlayerServiceModern::class.java)
+                val intent = Intent(context, PlaybackService::class.java)
                     .setAction( customCommand.customAction )
                 context.startService( intent )
             }
@@ -172,7 +168,7 @@ class MediaLibrarySessionCallback(
     ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(
         LibraryResult.ofItem(
             MediaItem.Builder()
-                .setMediaId(PlayerServiceModern.ROOT)
+                .setMediaId(Tree.ROOT)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setIsPlayable(false)
@@ -196,30 +192,30 @@ class MediaLibrarySessionCallback(
     ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = scope.future(Dispatchers.IO) {
         LibraryResult.ofItemList(
             when (parentId) {
-                PlayerServiceModern.ROOT -> listOf(
+                Tree.ROOT -> listOf(
                     browsableMediaItem(
-                        PlayerServiceModern.SONG,
+                        Tree.SONGS,
                         context.getString(R.string.songs),
                         null,
                         drawableUri(R.drawable.musical_notes),
                         MediaMetadata.MEDIA_TYPE_PLAYLIST
                     ),
                     browsableMediaItem(
-                        PlayerServiceModern.ARTIST,
+                        Tree.ARTISTS,
                         context.getString(R.string.artists),
                         null,
                         drawableUri(R.drawable.people),
                         MediaMetadata.MEDIA_TYPE_FOLDER_ARTISTS
                     ),
                     browsableMediaItem(
-                        PlayerServiceModern.ALBUM,
+                        Tree.ALBUMS,
                         context.getString(R.string.albums),
                         null,
                         drawableUri(R.drawable.album),
                         MediaMetadata.MEDIA_TYPE_FOLDER_ALBUMS
                     ),
                     browsableMediaItem(
-                        PlayerServiceModern.PLAYLIST,
+                        Tree.PLAYLISTS,
                         context.getString(R.string.playlists),
                         null,
                         drawableUri(R.drawable.library),
@@ -227,7 +223,7 @@ class MediaLibrarySessionCallback(
                     )
                 )
 
-                PlayerServiceModern.SONG -> Database.eventTable
+                Tree.SONGS -> Database.eventTable
                                                     .findSongsMostPlayedBetween( StatisticsType.OneMonth.timeStampInMillis() )
                                                     .first()
                                                     .ifEmpty {
@@ -238,9 +234,9 @@ class MediaLibrarySessionCallback(
                                                     }
                                                     .map { it.toMediaItem(parentId) }
 
-                PlayerServiceModern.ARTIST -> Database.artistTable.allFollowing().first().map { artist ->
+                Tree.ARTISTS -> Database.artistTable.allFollowing().first().map { artist ->
                     browsableMediaItem(
-                        "${PlayerServiceModern.ARTIST}/${artist.id}",
+                        "${Tree.ARTISTS}/${artist.id}",
                         artist.name ?: "",
                         "",
                         artist.thumbnailUrl?.toUri(),
@@ -248,9 +244,9 @@ class MediaLibrarySessionCallback(
                     )
                 }
 
-                PlayerServiceModern.ALBUM -> Database.albumTable.blockingAll().map { album ->
+                Tree.ALBUMS -> Database.albumTable.blockingAll().map { album ->
                     browsableMediaItem(
-                        "${PlayerServiceModern.ALBUM}/${album.id}",
+                        "${Tree.ALBUMS}/${album.id}",
                         album.title ?: "",
                         album.authorsText,
                         album.cleanThumbnailUrl()?.toUri(),
@@ -259,43 +255,43 @@ class MediaLibrarySessionCallback(
                 }
 
 
-                PlayerServiceModern.PLAYLIST -> {
+                Tree.PLAYLISTS -> {
                     val likedSongCount = Database.songTable.allFavorites().first().size
                     val cachedSongCount = getCountCachedSongs().first()
-                    val downloadedSongCount = getCountDownloadedSongs().first()
+                    val downloadedSongCount = getCountDownloadedSongs()
                     val onDeviceSongCount = Database.songTable.allOnDevice().first().size
                     val playlists = Database.playlistTable.sortPreviewsBySongCount().first()
                     listOf(
                         browsableMediaItem(
-                            "${PlayerServiceModern.PLAYLIST}/${ID_FAVORITES}",
+                            "${Tree.PLAYLISTS}/${Id.FAVORITES}",
                             context.getString(R.string.favorites),
                             likedSongCount.toString(),
                             drawableUri(R.drawable.heart),
                             MediaMetadata.MEDIA_TYPE_PLAYLIST
                         ),
                         browsableMediaItem(
-                            "${PlayerServiceModern.PLAYLIST}/${ID_CACHED}",
+                            "${Tree.PLAYLISTS}/${Id.CACHED}",
                             context.getString(R.string.cached),
                             cachedSongCount.toString(),
                             drawableUri(R.drawable.download),
                             MediaMetadata.MEDIA_TYPE_PLAYLIST
                         ),
                         browsableMediaItem(
-                            "${PlayerServiceModern.PLAYLIST}/$ID_DOWNLOADED",
+                            "${Tree.PLAYLISTS}/${Id.DOWNLOADED}",
                             context.getString(R.string.downloaded),
                             downloadedSongCount.toString(),
                             drawableUri(R.drawable.downloaded),
                             MediaMetadata.MEDIA_TYPE_PLAYLIST
                         ),
                         browsableMediaItem(
-                            "${PlayerServiceModern.PLAYLIST}/$ID_TOP",
+                            "${Tree.PLAYLISTS}/${Id.TOP}",
                             context.getString(R.string.playlist_top),
                             Preferences.MAX_NUMBER_OF_TOP_PLAYED.value.name,
                             drawableUri(R.drawable.trending),
                             MediaMetadata.MEDIA_TYPE_PLAYLIST
                         ),
                         browsableMediaItem(
-                            "${PlayerServiceModern.PLAYLIST}/$ID_ONDEVICE",
+                            "${Tree.PLAYLISTS}/${Id.ON_DEVICE}",
                             context.getString(R.string.on_device),
                             onDeviceSongCount.toString(),
                             drawableUri(R.drawable.devices),
@@ -304,7 +300,7 @@ class MediaLibrarySessionCallback(
 
                     ) + playlists.map { playlist ->
                         browsableMediaItem(
-                            "${PlayerServiceModern.PLAYLIST}/${playlist.playlist.id}",
+                            "${Tree.PLAYLISTS}/${playlist.playlist.id}",
                             playlist.playlist.name,
                             playlist.songCount.toString(),
                             drawableUri(R.drawable.playlist),
@@ -317,14 +313,14 @@ class MediaLibrarySessionCallback(
 
                 else -> when {
 
-                    parentId.startsWith("${PlayerServiceModern.ARTIST}/") ->
+                    parentId.startsWith("${Tree.ARTISTS}/") ->
                         Database.songArtistMapTable
-                                .allSongsBy( parentId.removePrefix("${PlayerServiceModern.ARTIST}/") )
+                                .allSongsBy( parentId.removePrefix("${Tree.ARTISTS}/") )
                                 .first()
                                 .map { it.toMediaItem( parentId ) }
 
-                    parentId.startsWith("${PlayerServiceModern.ALBUM}/") -> {
-                        val albumId = parentId.removePrefix("${PlayerServiceModern.ALBUM}/")
+                    parentId.startsWith("${Tree.ALBUMS}/") -> {
+                        val albumId = parentId.removePrefix("${Tree.ALBUMS}/")
 
                         Database.songAlbumMapTable
                                 .allSongsOf( albumId )
@@ -332,12 +328,12 @@ class MediaLibrarySessionCallback(
                                 .map { it.toMediaItem( parentId ) }
                     }
 
-                    parentId.startsWith("${PlayerServiceModern.PLAYLIST}/") -> {
+                    parentId.startsWith("${Tree.PLAYLISTS}/") -> {
 
                         when (val playlistId =
-                            parentId.removePrefix("${PlayerServiceModern.PLAYLIST}/")) {
-                            ID_FAVORITES -> Database.songTable.allFavorites()
-                            ID_CACHED -> Database.formatTable
+                            parentId.removePrefix("${Tree.PLAYLISTS}/")) {
+                            Id.FAVORITES -> Database.songTable.allFavorites()
+                            Id.CACHED -> Database.formatTable
                                                  .allWithSongs()
                                                  .map { list ->
                                                      list.filter {
@@ -347,7 +343,7 @@ class MediaLibrarySessionCallback(
                                                          .map( FormatWithSong::song )
                                                          .reversed()
                                                  }
-                            ID_TOP ->
+                            Id.TOP ->
                                 Database.eventTable
                                         .findSongsMostPlayedBetween(
                                             from = 0,
@@ -355,16 +351,14 @@ class MediaLibrarySessionCallback(
                                                             .value
                                                             .toInt()
                                         )
-                            ID_ONDEVICE -> Database.songTable.allOnDevice()
-                            ID_DOWNLOADED -> {
-                                val downloads = MyDownloadHelper.instance.downloads.value
+                            Id.ON_DEVICE -> Database.songTable.allOnDevice()
+                            Id.DOWNLOADED -> {
+                                val downloads = cacheState.downloaded.value.filterValues { it == Download.STATE_COMPLETED }.keys
+                                // TODO: Make a SQL statement that only queries for songs with ids in [downloads]
                                 Database.songTable
-                                        .all( excludeHidden = true )
-                                        .flowOn( Dispatchers.IO )
+                                        .sortAll(SongSortBy.TITLE, SortOrder.ASCENDING)
                                         .map { list ->
-                                            list.filter {
-                                                    downloads[it.id]?.state == Download.STATE_COMPLETED
-                                                }
+                                            list.filter { it.id in downloads }
                                         }
                             }
 
@@ -418,28 +412,28 @@ class MediaLibrarySessionCallback(
 
             val paths = mediaItems.first().mediaId.split( "/" )
             when( paths.first() ) {
-                PlayerServiceModern.SEARCHED -> {
+                Tree.SEARCH_RESULTS -> {
                     songId = paths[1]
                     queryList = searchedSongs
                 }
-                PlayerServiceModern.SONG -> {
+                Tree.SONGS -> {
                     songId = paths[1]
                     queryList = Database.songTable.blockingAll()
                 }
-                PlayerServiceModern.ARTIST -> {
+                Tree.ARTISTS -> {
                     songId = paths[2]
                     queryList = Database.songArtistMapTable.allSongsBy( paths[1] ).first()
                 }
-                PlayerServiceModern.ALBUM -> {
+                Tree.ALBUMS -> {
                     songId = paths[2]
                     queryList = Database.songAlbumMapTable.allSongsOf( paths[1] ).first()
                 }
-                PlayerServiceModern.PLAYLIST -> {
+                Tree.PLAYLISTS -> {
                     val playlistId = paths[1]
                     songId = paths[2]
                     queryList = when ( playlistId ) {
-                        ID_FAVORITES -> Database.songTable.allFavorites().map { it.reversed() }
-                        ID_CACHED -> Database.formatTable
+                        Id.FAVORITES -> Database.songTable.allFavorites().map { it.reversed() }
+                        Id.CACHED -> Database.formatTable
                                              .allWithSongs()
                                              .map { list ->
                                                  list.fastFilter {
@@ -449,7 +443,7 @@ class MediaLibrarySessionCallback(
                                                      .reversed()
                                                      .fastMap( FormatWithSong::song )
                                              }
-                        ID_TOP -> Database.eventTable
+                        Id.TOP -> Database.eventTable
                                            // Already in DESC order
                                            .findSongsMostPlayedBetween(
                                                from = 0,
@@ -457,16 +451,14 @@ class MediaLibrarySessionCallback(
                                                                .value
                                                                .toInt()
                                            )
-                        ID_ONDEVICE -> Database.songTable.allOnDevice()
-                        ID_DOWNLOADED -> {
-                            val downloads = MyDownloadHelper.instance.downloads.value
+                        Id.ON_DEVICE -> Database.songTable.allOnDevice()
+                        Id.DOWNLOADED -> {
+                            val downloads = cacheState.downloaded.value.filterValues { it == Download.STATE_COMPLETED }.keys
+                            // TODO: Make a SQL statement that only queries for songs with ids in [downloads]
                             Database.songTable
-                                    .all( excludeHidden = false )
-                                    .map { songs ->
-                                        songs.fastFilter {
-                                                 downloads[it.id]?.state == Download.STATE_COMPLETED
-                                             }
-                                             .sortedByDescending { downloads[it.id]?.updateTimeMs ?: 0L }
+                                    .sortAll(SongSortBy.TITLE, SortOrder.ASCENDING)
+                                    .map { list ->
+                                        list.filter { it.id in downloads }
                                     }
                         }
 
@@ -563,29 +555,33 @@ class MediaLibrarySessionCallback(
                         .size
                 }
 
-    private fun getCountDownloadedSongs() = MyDownloadHelper.instance.downloads.map {
-        it.filter {
-            it.value.state == Download.STATE_COMPLETED
-        }.size
-    }
+    private fun getCountDownloadedSongs() =
+        cacheState.downloaded.value.values.count { it == Download.STATE_COMPLETED }
 
     object Command {
 
         val search = SessionCommand("SEARCH", Bundle.EMPTY)
-        val download = SessionCommand(PlayerServiceModern.ACTION_DOWNLOAD, Bundle.EMPTY)
-        val like = SessionCommand(PlayerServiceModern.ACTION_LIKE, Bundle.EMPTY)
-        val cycleRepeat = SessionCommand(PlayerServiceModern.PLAYER_ACTION_CYCLE_REPEAT, Bundle.EMPTY)
-        val toggleShuffle = SessionCommand(PlayerServiceModern.PLAYER_ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
-        val toggleRadio = SessionCommand(PlayerServiceModern.PLAYER_ACTION_TOGGLE_RADIO, Bundle.EMPTY)
+        val download = SessionCommand(PlaybackService.ACTION_DOWNLOAD, Bundle.EMPTY)
+        val like = SessionCommand(PlaybackService.ACTION_LIKE, Bundle.EMPTY)
+        val cycleRepeat = SessionCommand(PlaybackService.PLAYER_ACTION_CYCLE_REPEAT, Bundle.EMPTY)
+        val toggleShuffle = SessionCommand(PlaybackService.PLAYER_ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
+        val toggleRadio = SessionCommand(PlaybackService.PLAYER_ACTION_TOGGLE_RADIO, Bundle.EMPTY)
     }
-}
 
+    object Id {
+        const val FAVORITES = "FAVORITES"
+        const val CACHED = "CACHED"
+        const val DOWNLOADED = "DOWNLOADED"
+        const val TOP = "TOP"
+        const val ON_DEVICE = "ON_DEVICE"
+    }
 
-
-object MediaSessionConstants {
-    const val ID_FAVORITES = "FAVORITES"
-    const val ID_CACHED = "CACHED"
-    const val ID_DOWNLOADED = "DOWNLOADED"
-    const val ID_TOP = "TOP"
-    const val ID_ONDEVICE = "ONDEVICE"
+    object Tree {
+        const val ROOT = "ROOT"
+        const val SONGS = "SONGS"
+        const val ARTISTS = "ARTISTS"
+        const val ALBUMS = "ALBUMS"
+        const val PLAYLISTS = "PLAYLISTS"
+        const val SEARCH_RESULTS = "SEARCH_RESULTS"
+    }
 }

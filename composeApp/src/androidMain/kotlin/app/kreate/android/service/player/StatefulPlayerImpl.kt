@@ -6,9 +6,11 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.media.audiofx.AudioEffect
 import android.media.audiofx.BassBoost
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.PresetReverb
+import android.widget.Toast
 import androidx.annotation.AnyThread
 import androidx.annotation.MainThread
 import androidx.annotation.OptIn
@@ -24,6 +26,7 @@ import androidx.media3.common.AuxEffectInfo
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Player.REPEAT_MODE_ALL
@@ -32,11 +35,15 @@ import androidx.media3.common.Player.REPEAT_MODE_ONE
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.PlaybackStatsListener
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.service.PlayerEventUpdateDiscord
+import app.kreate.android.service.playback.PlaybackListener
+import app.kreate.android.service.playback.PlaybackService
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toMediaItem
+import app.kreate.android.utils.isLocal
 import app.kreate.android.widget.WidgetReceiver
 import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
@@ -45,14 +52,19 @@ import co.touchlab.kermit.Logger
 import it.fast4x.innertube.models.NavigationEndpoint
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.enums.QueueLoopType
-import it.fast4x.rimusic.service.modern.PlayerServiceModern
-import it.fast4x.rimusic.service.modern.PlayerServiceModern.Companion.SleepTimerNotificationId
-import it.fast4x.rimusic.service.modern.isLocal
+import it.fast4x.rimusic.service.LoginRequiredException
+import it.fast4x.rimusic.service.MissingDecipherKeyException
+import it.fast4x.rimusic.service.NoInternetException
+import it.fast4x.rimusic.service.PlayableFormatNotFoundException
+import it.fast4x.rimusic.service.UnknownException
+import it.fast4x.rimusic.service.UnplayableException
+import it.fast4x.rimusic.utils.AppLifecycleTracker
 import it.fast4x.rimusic.utils.TimerJob
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.forcePlay
 import it.fast4x.rimusic.utils.getEnum
 import it.fast4x.rimusic.utils.mediaItems
+import it.fast4x.rimusic.utils.playNext
 import it.fast4x.rimusic.utils.setGlobalVolume
 import it.fast4x.rimusic.utils.timer
 import kotlinx.coroutines.CoroutineScope
@@ -81,6 +93,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 
 /**
@@ -103,7 +116,8 @@ class StatefulPlayerImpl(
         // TODO: Make this a setting entry
         private const val SAVE_INTERVAL = 30_000L
 
-        const val SleepTimerNotificationChannelId = "sleep_timer_channel_id"
+        private const val SLEEP_TIMER_NOTIFICATION_ID = 1002
+        private const val SLEEP_TIMER_NOTIFICATION_CHANNEL = "sleep_timer_channel_id"
     }
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -127,6 +141,8 @@ class StatefulPlayerImpl(
     private lateinit var bassBoost: BassBoost
     private lateinit var reverb: PresetReverb
     //</editor-fold>
+    private var errorTimestamp = 0L
+    private var lastErrorMessage = ""
 
     override val currentMediaItemState = _currentMediaItemState.asStateFlow()
     override val currentTimelineState = _currentTimelineState.asStateFlow()
@@ -136,6 +152,9 @@ class StatefulPlayerImpl(
     init {
         this.addListener( this )
         this.addListener( PlayerEventUpdateDiscord() )
+        this.addAnalyticsListener(
+            PlaybackStatsListener(false, PlaybackListener(coroutineScope))
+        )
 
         val preferences: SharedPreferences by inject(PrefType.DEFAULT)
         preferences.registerOnSharedPreferenceChangeListener( this )
@@ -143,8 +162,9 @@ class StatefulPlayerImpl(
 
         skipSilenceEnabled = Preferences.AUDIO_SKIP_SILENCE.value
         repeatMode = Preferences.QUEUE_LOOP_TYPE.value.type
+        shuffleModeEnabled = Preferences.PLAYER_SHUFFLE.value
         volume = Preferences.AUDIO_VOLUME.value
-        setGlobalVolume( player.volume )
+        setGlobalVolume( volume )
         playbackParameters = PlaybackParameters(
             Preferences.AUDIO_SPEED_VALUE.value,
             Preferences.AUDIO_PITCH.value
@@ -152,6 +172,11 @@ class StatefulPlayerImpl(
 
         loadPersistentQueue()
         schedulePersistentQueueSave()
+
+        if( Preferences.ENABLE_PERSISTENT_QUEUE.value
+            && Preferences.RESUME_PLAYBACK_ON_STARTUP.value
+            && AppLifecycleTracker.isInForeground()
+        ) play()
     }
 
     private fun stopFadingEffect() {
@@ -219,7 +244,7 @@ class StatefulPlayerImpl(
                 val floor = min(start, end)
                 val ceil = max(start, end)
 
-                player.volume = getVolumeForProgress(
+                volume = getVolumeForProgress(
                     linearProgress = animator.animatedValue as Float,
                     startVolume = start,
                     targetVolume = end
@@ -330,8 +355,8 @@ class StatefulPlayerImpl(
         this.stopRadio()
 
         // Play song immediately while other songs are being loaded
-        if( player.currentMediaItem?.mediaId != mediaItem.mediaId )
-            player.forcePlay( mediaItem )
+        if( currentMediaItem?.mediaId != mediaItem.mediaId )
+            forcePlay( mediaItem )
 
         // Prevent UI from freezing up while data is being fetched
         radioJob = coroutineScope.launch {
@@ -351,7 +376,7 @@ class StatefulPlayerImpl(
 
                 // Any call to [player] must happen on Main thread
                 val currentQueue = withContext( Dispatchers.Main ) {
-                    player.mediaItems.fastMap( MediaItem::mediaId )
+                    mediaItems.fastMap( MediaItem::mediaId )
                 }
 
                 // Songs with the same id as provided [Song] should be removed.
@@ -373,14 +398,14 @@ class StatefulPlayerImpl(
 
                                         When new song is used for radio, replace entire queue with new songs.
                                       */
-                                    val curIndex = player.currentMediaItemIndex
-                                    val endIndex = player.mediaItemCount
-                                    if( !append && player.mediaItemCount > 1 ) {
-                                        player.moveMediaItem( curIndex, 0 )
-                                        player.removeMediaItems( curIndex + 1, endIndex )
+                                    val curIndex = currentMediaItemIndex
+                                    val endIndex = mediaItemCount
+                                    if( !append && mediaItemCount > 1 ) {
+                                        moveMediaItem( curIndex, 0 )
+                                        removeMediaItems( curIndex + 1, endIndex )
                                     }
 
-                                    player.addMediaItems(it)
+                                    addMediaItems(it)
                                 }
                             }
             }.onFailure { err ->
@@ -429,7 +454,7 @@ class StatefulPlayerImpl(
             pause()
 
             val notification = NotificationCompat
-                .Builder(context, SleepTimerNotificationChannelId)
+                .Builder(context, SLEEP_TIMER_NOTIFICATION_CHANNEL)
                 .setContentTitle(title)
                 .setAutoCancel( true )
                 .setOnlyAlertOnce( true )
@@ -437,7 +462,7 @@ class StatefulPlayerImpl(
                 .setSmallIcon( R.drawable.time )
                 .build()
             val manager = context.getSystemService<NotificationManager>()
-            manager?.notify( SleepTimerNotificationId, notification )
+            manager?.notify( SLEEP_TIMER_NOTIFICATION_ID, notification )
         }
     }
 
@@ -453,8 +478,6 @@ class StatefulPlayerImpl(
     /*
             ExoPlayer
      */
-
-    override fun getSecondaryRenderer( index: Int ) = player.getSecondaryRenderer( index )
 
     override fun play() {
         fun action() {
@@ -622,9 +645,37 @@ class StatefulPlayerImpl(
     }
 
     private fun updateMediaControl() {
-        val intent = Intent(context, PlayerServiceModern::class.java)
-            .setAction( PlayerServiceModern.ACTION_UPDATE_MEDIA_CONTROL )
+        val intent = Intent(context, PlaybackService::class.java)
+            .setAction( PlaybackService.ACTION_UPDATE_MEDIA_CONTROL )
         context.startService( intent )
+    }
+
+    private fun traverseErrorStack( t: Throwable ): Throwable =
+        when( t ) {
+            is PlayableFormatNotFoundException,
+            is UnplayableException,
+            is LoginRequiredException,
+            is NoInternetException,
+            is UnknownException,
+            is MissingDecipherKeyException -> t
+
+            else -> t.cause?.let( ::traverseErrorStack ) ?: t
+        }
+
+    private fun printErrorMessage( errMsg: String )  {
+        // If the same error is set within 10s, it'll be ignored.
+        val timeWindow = errorTimestamp + 10.seconds.inWholeMilliseconds
+
+        if( errMsg == lastErrorMessage
+            && System.currentTimeMillis() <= timeWindow
+        ) return
+
+        lastErrorMessage = errMsg
+        // When field is successfully set, update timestamp.
+        errorTimestamp = System.currentTimeMillis()
+        // Finally, print the error if not blank
+        if( errMsg.isNotBlank() )
+            Toaster.e( errMsg, Toast.LENGTH_LONG )
     }
 
     override fun onMediaItemTransition( mediaItem: MediaItem?, reason: Int ) {
@@ -653,7 +704,7 @@ class StatefulPlayerImpl(
             && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
             && currentMediaItem?.isLocal == false
         ) {
-            val positionToLast = player.mediaItemCount - player.currentMediaItemIndex
+            val positionToLast = mediaItemCount - currentMediaItemIndex
             // Make sure only add when about 10 songs to the last song in queue
             // TODO: Add slider in settings to let user change number of songs
             if( positionToLast <= 10 && !isLoadingRadio() )
@@ -740,12 +791,57 @@ class StatefulPlayerImpl(
     }
 
     override fun onShuffleModeEnabledChanged( shuffleModeEnabled: Boolean ) {
+        Preferences.PLAYER_SHUFFLE.value = shuffleModeEnabled
+
         updateMediaControl()
     }
 
     override fun onRepeatModeChanged( repeatMode: Int ) {
+        Preferences.QUEUE_LOOP_TYPE.value = QueueLoopType.from( repeatMode )
+
         updateMediaControl()
     }
+
+    override fun onPlayerError( error: PlaybackException ) {
+        val rootCause = traverseErrorStack( error )
+
+        when( rootCause ) {
+            is PlayableFormatNotFoundException -> context.getString( R.string.error_couldn_t_find_a_playable_audio_format )
+            is NoInternetException -> context.getString( R.string.no_connection )
+            is MissingDecipherKeyException -> context.getString( R.string.error_failed_to_decipher_signature )
+
+            else -> rootCause.message ?: context.getString( R.string.error_unknown )
+        }.also( ::printErrorMessage )
+
+        // TODO: Add additional recovery step if type of error allows it
+
+        if ( Preferences.PLAYBACK_SKIP_ON_ERROR.value && hasNextMediaItem() )
+            playNext()
+    }
+
+    override fun onEvents( player: Player, events: Player.Events ) {
+        if (
+            events.containsAny(
+                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                Player.EVENT_PLAY_WHEN_READY_CHANGED
+            )
+        ) {
+            val isBufferingOrReady = player.playbackState == Player.STATE_BUFFERING
+                    || player.playbackState == Player.STATE_READY
+            val intent = Intent(
+                if( isBufferingOrReady && player.playWhenReady )
+                    AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION
+                else
+                    AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION
+            )
+                .putExtra( AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId )
+                .putExtra( AudioEffect.EXTRA_PACKAGE_NAME, context.packageName )
+                .putExtra( AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC )
+
+            context.sendBroadcast( intent )
+        }
+    }
+
 
     /*
             SharedPreferences listener

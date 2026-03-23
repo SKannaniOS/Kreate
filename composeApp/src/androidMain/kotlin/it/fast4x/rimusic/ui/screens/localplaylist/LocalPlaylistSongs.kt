@@ -51,10 +51,10 @@ import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.cache.Cache
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
+import app.kreate.android.service.download.DownloadHelper
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.themed.common.component.tab.DeleteAllDownloadedDialog
 import app.kreate.android.themed.common.component.tab.DownloadAllDialog
@@ -64,11 +64,11 @@ import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.playlist.PlaylistSongsSort
 import app.kreate.android.themed.rimusic.component.playlist.PositionLock
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.android.utils.isLocal
 import app.kreate.android.utils.shallowCompare
 import app.kreate.constant.PlaylistSongSortBy
 import app.kreate.database.models.Song
 import app.kreate.database.models.SongPlaylistMap
-import app.kreate.di.CacheType
 import app.kreate.util.cleanPrefix
 import app.kreate.util.toDuration
 import co.touchlab.kermit.Logger
@@ -84,7 +84,6 @@ import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavigationBarPosition
 import it.fast4x.rimusic.enums.UiType
-import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.thumbnailShape
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.LocalMenuState
@@ -120,7 +119,6 @@ import it.fast4x.rimusic.utils.forcePlayAtIndex
 import it.fast4x.rimusic.utils.forcePlayFromBeginning
 import it.fast4x.rimusic.utils.isAtLeastAndroid14
 import it.fast4x.rimusic.utils.isLandscape
-import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.saveImageToInternalStorage
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.Dispatchers
@@ -138,7 +136,6 @@ import me.knighthat.component.tab.Locator
 import me.knighthat.component.tab.SongShuffler
 import me.knighthat.utils.Toaster
 import org.koin.compose.koinInject
-import org.koin.java.KoinJavaComponent.inject
 import kotlin.time.Duration
 
 
@@ -159,6 +156,7 @@ fun LocalPlaylistSongs(
     // Essentials
     val context = LocalContext.current
     val player: StatefulPlayer = koinInject()
+    val downloadHelper: DownloadHelper = koinInject()
     val hapticFeedback = LocalHapticFeedback.current
     val (colorPalette, typography) = LocalAppearance.current
     val lazyListState = rememberLazyListState()
@@ -689,19 +687,7 @@ fun LocalPlaylistSongs(
                             )
                         },
                         onDownload = {
-                            val cache: Cache by inject(Cache::class.java, CacheType.CACHE)
-                            cache.removeResource(song.asMediaItem.mediaId)
-                            Database.asyncTransaction {
-                                formatTable.updateContentLengthOf( song.id )
-                            }
-
-                            if (!isLocal) {
-                                manageDownload(
-                                    context = context,
-                                    mediaItem = song.asMediaItem,
-                                    downloadState = song.isLocal
-                                )
-                            }
+                            downloadHelper.downloadSong( song )
                         },
                         onEnqueue = {
                             player.enqueue(song.asMediaItem)

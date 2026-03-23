@@ -68,6 +68,7 @@ import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
+import app.kreate.android.service.download.DownloadHelper
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.android.themed.rimusic.component.song.SongItem
@@ -84,7 +85,6 @@ import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavRoutes
 import it.fast4x.rimusic.enums.NavigationBarPosition
 import it.fast4x.rimusic.enums.UiType
-import it.fast4x.rimusic.service.modern.isLocal
 import it.fast4x.rimusic.typography
 import it.fast4x.rimusic.ui.components.LocalMenuState
 import it.fast4x.rimusic.ui.components.SwipeablePlaylistItem
@@ -110,9 +110,7 @@ import it.fast4x.rimusic.utils.enqueue
 import it.fast4x.rimusic.utils.fadingEdge
 import it.fast4x.rimusic.utils.forcePlayAtIndex
 import it.fast4x.rimusic.utils.forcePlayFromBeginning
-import it.fast4x.rimusic.utils.isDownloadedSong
 import it.fast4x.rimusic.utils.isLandscape
-import it.fast4x.rimusic.utils.manageDownload
 import it.fast4x.rimusic.utils.medium
 import it.fast4x.rimusic.utils.secondary
 import it.fast4x.rimusic.utils.semiBold
@@ -137,7 +135,8 @@ fun Podcast(
     browseId: String,
     params: String?,
     maxDepth: Int?,
-    player: StatefulPlayer = koinInject()
+    player: StatefulPlayer = koinInject(),
+    downloadHelper: DownloadHelper = koinInject()
 ) {
     val (colorPalette, typography) = LocalAppearance.current
     val context = LocalContext.current
@@ -388,19 +387,8 @@ fun Podcast(
                                     .padding(horizontal = 5.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            downloadState = Download.STATE_DOWNLOADING
-                                            if (podcastPage?.listEpisode?.isNotEmpty() == true)
-                                                podcastPage?.listEpisode?.forEach {
-                                                    cache.removeResource(it.asMediaItem.mediaId)
-                                                    Database.asyncTransaction {
-                                                        formatTable.findBySongId( it.asMediaItem.mediaId )
-                                                    }
-                                                    manageDownload(
-                                                        context = context,
-                                                        mediaItem = it.asMediaItem,
-                                                        downloadState = false
-                                                    )
-                                                }
+                                            val episodes = podcastPage?.listEpisode?.map { it.asMediaItem }.orEmpty()
+                                            downloadHelper.downloadMediaItems( episodes )
                                         },
                                         onLongClick = {
                                             Toaster.i( R.string.info_download_all_songs )
@@ -416,19 +404,8 @@ fun Podcast(
                                     .padding(horizontal = 5.dp)
                                     .combinedClickable(
                                         onClick = {
-                                            downloadState = Download.STATE_DOWNLOADING
-                                            if (podcastPage?.listEpisode?.isNotEmpty() == true)
-                                                podcastPage?.listEpisode?.forEach {
-                                                    cache.removeResource(it.asMediaItem.mediaId)
-                                                    Database.asyncTransaction {
-                                                        formatTable.findBySongId( it.asMediaItem.mediaId )
-                                                    }
-                                                    manageDownload(
-                                                        context = context,
-                                                        mediaItem = it.asMediaItem,
-                                                        downloadState = true
-                                                    )
-                                                }
+                                            val episodes = podcastPage?.listEpisode?.map { it.asMediaItem }.orEmpty()
+                                            downloadHelper.removeMediaItems( episodes )
                                         },
                                         onLongClick = {
                                             Toaster.i( R.string.info_remove_all_downloaded_songs )
@@ -690,8 +667,6 @@ fun Podcast(
                         } else true
                     } ?: emptyList())
                 { index, song ->
-                    val isLocal by remember { derivedStateOf { song.asMediaItem.isLocal } }
-                    val isDownloaded = if (!isLocal) isDownloadedSong(song.asMediaItem.mediaId) else true
 
                     SwipeablePlaylistItem(
                         mediaItem = song.asMediaItem,
@@ -699,17 +674,7 @@ fun Podcast(
                             player.addNext(song.asMediaItem)
                         },
                         onDownload = {
-                            cache.removeResource(song.asMediaItem.mediaId)
-                            Database.asyncTransaction {
-                                formatTable.updateContentLengthOf( song.asMediaItem.mediaId )
-                            }
-
-                            if (!isLocal)
-                                manageDownload(
-                                    context = context,
-                                    mediaItem = song.asMediaItem,
-                                    downloadState = isDownloaded
-                                )
+                            downloadHelper.downloadMediaItem( song.asMediaItem )
                         },
                         onEnqueue = {
                             player.enqueue(song.asMediaItem)
