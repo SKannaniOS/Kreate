@@ -43,12 +43,19 @@ import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.cache.Cache
+import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
+<<<<<<< HEAD
 import app.kreate.android.service.download.CacheState
 import app.kreate.android.service.download.DownloadHelper
 import app.kreate.android.service.player.StatefulPlayer
+=======
+import app.kreate.android.service.player.StatefulPlayer
+import app.kreate.di.CacheType
+>>>>>>> upstream/main
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.enums.ColorPaletteName
 import it.fast4x.rimusic.enums.PlayerBackgroundColors
@@ -58,13 +65,30 @@ import it.fast4x.rimusic.ui.components.LocalMenuState
 import it.fast4x.rimusic.ui.components.themed.AddToPlaylistPlayerMenu
 import it.fast4x.rimusic.ui.components.themed.PlayerMenu
 import it.fast4x.rimusic.ui.styling.LocalAppearance
+<<<<<<< HEAD
 import it.fast4x.rimusic.utils.isLandscape
 import it.fast4x.rimusic.utils.shuffleQueue
 import kotlinx.coroutines.Dispatchers
+=======
+import it.fast4x.rimusic.utils.getDownloadState
+import it.fast4x.rimusic.utils.isDownloadedSong
+import it.fast4x.rimusic.utils.isLandscape
+import it.fast4x.rimusic.utils.manageDownload
+import it.fast4x.rimusic.utils.shuffleQueue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+>>>>>>> upstream/main
 import me.knighthat.component.player.PlaybackSpeed
 import me.knighthat.kreate.composeapp.generated.resources.Res
 import me.knighthat.kreate.composeapp.generated.resources.add_in_playlist
 import me.knighthat.kreate.composeapp.generated.resources.chevron_up
+<<<<<<< HEAD
+=======
+import me.knighthat.kreate.composeapp.generated.resources.download
+import me.knighthat.kreate.composeapp.generated.resources.download_progress
+import me.knighthat.kreate.composeapp.generated.resources.downloaded
+>>>>>>> upstream/main
 import me.knighthat.kreate.composeapp.generated.resources.ellipsis_vertical
 import me.knighthat.kreate.composeapp.generated.resources.equalizer
 import me.knighthat.kreate.composeapp.generated.resources.maximize
@@ -234,6 +258,7 @@ fun BoxScope.ActionBar(
 
                 val showButtonPlayerDownload by Preferences.PLAYER_ACTION_DOWNLOAD
                 if (showButtonPlayerDownload) {
+<<<<<<< HEAD
                     val cacheState: CacheState = koinInject()
                     val downloadHelper: DownloadHelper = koinInject()
                     val state by cacheState.stateOf( mediaItem.mediaId )
@@ -247,14 +272,45 @@ fun BoxScope.ActionBar(
 
                     ActionButton(
                         resource = state.iconId,
+=======
+                    val cache: Cache = koinInject(CacheType.CACHE)
+                    val isCached by remember {
+                        Database.formatTable
+                                .findBySongId( mediaItem.mediaId )
+                                .mapNotNull { it?.contentLength }
+                                .map {
+                                    cache.isCached(mediaItem.mediaId, 0, it)
+                                }
+                    }.collectAsStateWithLifecycle(false)
+                    val isDownloaded = isDownloadedSong( mediaItem.mediaId )
+                    val icon = if( isDownloaded )
+                        when( getDownloadState(mediaItem.mediaId) ) {
+                            Download.STATE_DOWNLOADING -> Res.drawable.download_progress
+                            Download.STATE_COMPLETED -> Res.drawable.downloaded
+                            else -> Res.drawable.download
+                        }
+                    else
+                        Res.drawable.download
+                    val tint = if( isCached || isDownloaded ) colorPalette.accent else Color.Gray
+
+                    ActionButton(
+                        resource = icon,
+>>>>>>> upstream/main
                         tint = tint,
                         // TODO: localize
                         contentDescription = "Download media",
                         onLongClick = {
+<<<<<<< HEAD
                             downloadHelper.removeMediaItem( mediaItem )
                         },
                         onClick = {
                             downloadHelper.downloadMediaItem( mediaItem )
+=======
+                            manageDownload(context, mediaItem, true)
+                        },
+                        onClick = {
+                            manageDownload(context, mediaItem, false)
+>>>>>>> upstream/main
                         }
                     )
                 }

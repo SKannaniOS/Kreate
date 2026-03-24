@@ -29,6 +29,11 @@ import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.MainActivity
 import it.fast4x.rimusic.enums.NotificationButtons
 import it.fast4x.rimusic.utils.CoilBitmapLoader
+<<<<<<< HEAD
+=======
+import it.fast4x.rimusic.utils.intent
+import it.fast4x.rimusic.utils.manageDownload
+>>>>>>> upstream/main
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

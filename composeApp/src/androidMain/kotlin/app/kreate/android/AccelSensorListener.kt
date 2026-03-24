@@ -3,7 +3,10 @@ package app.kreate.android
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
+<<<<<<< HEAD
 import android.hardware.SensorEventListener2
+=======
+>>>>>>> upstream/main
 import app.kreate.android.service.player.StatefulPlayer
 import it.fast4x.rimusic.utils.playNext
 import org.koin.java.KoinJavaComponent.inject

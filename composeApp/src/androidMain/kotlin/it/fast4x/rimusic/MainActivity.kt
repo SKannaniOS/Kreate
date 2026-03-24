@@ -63,7 +63,10 @@ import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
+<<<<<<< HEAD
 import androidx.core.content.ContextCompat
+=======
+>>>>>>> upstream/main
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
@@ -76,11 +79,14 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.navigation.compose.rememberNavController
 import androidx.palette.graphics.Palette
+<<<<<<< HEAD
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+=======
+>>>>>>> upstream/main
 import app.kreate.android.AccelSensorListener
 import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
@@ -157,7 +163,10 @@ import me.knighthat.utils.Toaster
 import org.koin.compose.koinInject
 import org.koin.java.KoinJavaComponent.inject
 import java.util.Locale
+<<<<<<< HEAD
 import java.util.concurrent.TimeUnit
+=======
+>>>>>>> upstream/main
 import kotlin.system.exitProcess
 
 
@@ -179,9 +188,12 @@ MainActivity :
     private val pipState: MutableState<Boolean> = mutableStateOf(false)
     private val logger = Logger.withTag( this::class.java.simpleName )
 
+<<<<<<< HEAD
     private lateinit var playbackController: ListenableFuture<MediaController>
     private lateinit var workManager: WorkManager
 
+=======
+>>>>>>> upstream/main
     private fun registerAccelSensor() {
         accelSensorListener = AccelSensorListener()
         sensorManager?.registerListener(
@@ -252,7 +264,10 @@ MainActivity :
         }
 
         this.sensorManager = getSystemService<SensorManager>()
+<<<<<<< HEAD
         this.workManager = WorkManager.getInstance( applicationContext )
+=======
+>>>>>>> upstream/main
     }
 
 
@@ -922,6 +937,7 @@ MainActivity :
         if( Preferences.AUDIO_SHAKE_TO_SKIP.value )
             registerAccelSensor()
 
+<<<<<<< HEAD
         //<editor-fold desc="Start sync downloads worker periodically">
         workManager.enqueueUniquePeriodicWork(
            SyncDownloadWorker::class.java.name,
@@ -937,12 +953,17 @@ MainActivity :
             OneTimeWorkRequestBuilder<SyncDownloadWorker>().build()
         )
         //</editor-fold>
+=======
+        if( Preferences.AUDIO_SHAKE_TO_SKIP.value )
+            registerAccelSensor()
+>>>>>>> upstream/main
     }
 
     override fun onPause() {
         super.onPause()
 
         unregisterAccelSensor()
+<<<<<<< HEAD
 
         //<editor-fold desc="Cancel workers">
         // Database won't be updated in background to save resources
@@ -952,6 +973,8 @@ MainActivity :
         // then closes it immediately
         workManager.cancelUniqueWork(SyncDownloadWorker::class.java.simpleName)
         //</editor-fold>
+=======
+>>>>>>> upstream/main
     }
 
     @UnstableApi

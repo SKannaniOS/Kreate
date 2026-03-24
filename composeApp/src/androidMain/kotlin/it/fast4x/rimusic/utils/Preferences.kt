@@ -1,13 +1,11 @@
 package it.fast4x.rimusic.utils
 
-import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
 import app.kreate.android.Preferences
 import app.kreate.database.models.Song
