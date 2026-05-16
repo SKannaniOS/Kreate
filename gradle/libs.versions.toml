@@ -1,8 +1,8 @@
 
 [versions]
 # App properties
-versionCode = "135"
-versionName = "2.1.4"
+versionCode = "136"
+versionName = "2.1.5"
 compileSdk = "36"
 minSdk = "23"
 
@@ -33,7 +33,11 @@ coil3 = "3.4.0"
 room = "2.8.4"
 sqlite = "2.6.2"
 media3 = "1.9.2"
+<<<<<<< HEAD
 ktor = "3.4.1"
+>>>>>>> upstream/main
+=======
+ktor = "3.5.0"
 >>>>>>> upstream/main
 palette = "1.0.0"
 desugaring = "2.1.5"
@@ -59,15 +63,25 @@ lombok = "1.18.42"
 junit5 = "6.0.3"
 webkit = "1.15.0"
 newpipe-extractor = "v0.26.0"
+<<<<<<< HEAD
 compose-kmp = "1.10.2"
 license-report = "3.1.2"
+=======
+compose-kmp = "1.11.0"
+license-report = "3.1.1"
+>>>>>>> upstream/main
 material3-kmp = "1.9.0"
 junit4 = "4.13.2"
 robolectric = "4.16.1"
 androidTest = "1.7.0"
 lifecycle = "2.10.0"
+<<<<<<< HEAD
 kotlinx-serialization = "1.11.0"
 koin = "4.1.1"
+=======
+kotlinx-serialization = "1.10.0"
+koin = "4.2.1"
+>>>>>>> upstream/main
 kermit = "2.1.0"
 javax = "1"
 worker = "2.11.1"

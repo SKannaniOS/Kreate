@@ -151,12 +151,20 @@ fun AppearanceSettings(paddingValues: PaddingValues) {
                             // This part shouldn't reach this point. If it does, something else is wrong
                             else -> throw IllegalStateException("Unknown live wallpaper value $it")
                         }
+<<<<<<< HEAD
                     },
                     getList = {
                         val base = mutableListOf(0, 1, 2, 3)
                         if( !isAtLeastAndroid7 ) {      // Android -7 can only have on and off state
                             base.remove( 1 )
                             base.remove( 2 )
+=======
+                        pref.value = value.toLong() },
+                    onTextDisplay = {
+                        when (it) {
+                            -1f -> stringResource(R.string.word_disabled)
+                            else -> (it / 1000).toString()
+>>>>>>> upstream/main
                         }
                         base.toTypedArray()
                     }

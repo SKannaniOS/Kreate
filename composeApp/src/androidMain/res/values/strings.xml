@@ -909,9 +909,13 @@
     <string name="description_validate_url">Validate url</string>
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 =======
     <string name="disabled">disabled</string>
+=======
+    <string name="word_disabled">Disabled</string>
+>>>>>>> upstream/main
 =======
     <string name="word_disabled">Disabled</string>
 >>>>>>> upstream/main
