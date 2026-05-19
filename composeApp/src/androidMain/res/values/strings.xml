@@ -976,8 +976,11 @@
     <string name="reverb_preset_large_hall">Large hall</string>
     <string name="reverb_preset_plate">Plate</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 =======
+=======
+>>>>>>> upstream/main
     <string name="error_failed_to_set_wallpaper">Failed to set wallpaper</string>
     <string name="word_disable">Disable</string>
     <string name="live_wallpaper_home_screen">Home screen</string>
@@ -994,6 +997,7 @@
     <string name="setting_description_remove_image">Click to remove image</string>
     <string name="error_failed_to_update_widget">Failed to update widget</string>
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> upstream/main
 =======
     <string name="notification_category_download">Download notification</string>
@@ -1002,5 +1006,7 @@
     <string name="notification_group_download_results">Download results</string>
     <string name="notification_message_download_completed">%s successfully downloaded</string>
     <string name="notification_message_download_failed">%s failed to download</string>
+>>>>>>> upstream/main
+=======
 >>>>>>> upstream/main
 </resources>

@@ -488,8 +488,13 @@ class MediaLibrarySessionCallback(
             return Futures.immediateFuture(defaultResult)
 
         scope.future {
+<<<<<<< HEAD:composeApp/src/androidMain/kotlin/app/kreate/android/service/playback/MediaLibrarySessionCallback.kt
             val queue = Database.queueTable.blockingItems()
             val startIndex = queue.indexOfFirst { it.position != null }
+=======
+            val queue = database.queueTable.blockingItems()
+            val startIndex = queue.indexOfFirst { it.position != null }.coerceAtLeast( 0 )
+>>>>>>> upstream/main:composeApp/src/androidMain/kotlin/it/fast4x/rimusic/service/modern/MediaLibrarySessionCallback.kt
             val startPositionMs = queue[startIndex].position ?: C.TIME_UNSET
             val mediaItems = queue.map { it.song.asMediaItem.buildUpon().setTag( PersistentQueue.Tag ).build() }
             val resumptionPlaylist = MediaSession.MediaItemsWithStartPosition( mediaItems, startIndex, startPositionMs )
