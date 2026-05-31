@@ -44,8 +44,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import app.kreate.android.LocalBottomMenu
 import app.kreate.android.R
+<<<<<<< HEAD
 import app.kreate.android.service.download.CacheState
+=======
+import app.kreate.android.constant.MenuPage
+>>>>>>> upstream/main
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.themed.rimusic.component.song.SongItem
 import app.kreate.android.utils.isLocal
@@ -260,6 +265,7 @@ fun MediaItemGridMenu (
     val uriHandler = LocalUriHandler.current
     val hapticFeedback = LocalHapticFeedback.current
     val (_, typography) = LocalAppearance.current
+    val menu = LocalBottomMenu.current
 
     val isLocal by remember { derivedStateOf { mediaItem.isLocal } }
 
@@ -689,7 +695,11 @@ fun MediaItemGridMenu (
                         hapticFeedback = hapticFeedback,
                         isPlaying = mediaItem.shallowCompare( currentMediaItem ),
                         values = songItemValues,
-                        navController = navController
+                        navController = navController,
+                        onLongClick = {
+                            val page = if( mediaItem.isLocal ) MenuPage.LocalSong(mediaItem) else MenuPage.Song(mediaItem)
+                            menu.show( page, true )
+                        }
                     )
                 }
             ) {

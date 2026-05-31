@@ -8,6 +8,10 @@ import android.media.audiofx.AudioEffect
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
+<<<<<<< HEAD
+=======
+import androidx.core.content.ContextCompat
+>>>>>>> upstream/main
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -407,6 +411,7 @@ class PlayerServiceModern:
 >>>>>>> upstream/main
 
         preferences.registerOnSharedPreferenceChangeListener(this)
+<<<<<<< HEAD
         preferences.registerOnSharedPreferenceChangeListener(audioHandler)
 
         // Build the media library session
@@ -419,6 +424,20 @@ class PlayerServiceModern:
                     Intent(this, MainActivity::class.java)
                         .putExtra("expandPlayerBottomSheet", true),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+=======
+
+        // Build the media library session
+        mediaSession =
+            MediaLibrarySession.Builder(this, player, mediaLibrarySessionCallback)
+                .setSessionActivity(
+                    PendingIntent.getActivity(
+                        this,
+                        0,
+                        Intent(this, MainActivity::class.java)
+                            .putExtra("expandPlayerBottomSheet", true),
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+>>>>>>> upstream/main
                 )
             )
             .setBitmapLoader( CoilBitmapLoader(coroutineScope) )

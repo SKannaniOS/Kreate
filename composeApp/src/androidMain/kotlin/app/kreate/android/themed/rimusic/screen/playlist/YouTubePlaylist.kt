@@ -42,11 +42,17 @@ import androidx.compose.ui.util.fastMap
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import app.kreate.android.LocalBottomMenu
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.coil3.ImageFactory
+<<<<<<< HEAD
 import app.kreate.android.service.download.DownloadHelper
+=======
+import app.kreate.android.constant.MenuPage
+>>>>>>> upstream/main
 import app.kreate.android.service.player.StatefulPlayer
+import app.kreate.android.themed.common.component.BottomMenu
 import app.kreate.android.themed.common.component.LoadMoreContentType
 import app.kreate.android.themed.common.component.tab.DeleteAllDownloadedDialog
 import app.kreate.android.themed.common.component.tab.DownloadAllDialog
@@ -108,6 +114,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun YouTubePlaylist(
     navController: NavController,
     viewModel: YouTubePlaylistViewModel = koinViewModel(),
+    menu: BottomMenu = LocalBottomMenu.current,
     miniPlayer: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -329,16 +336,38 @@ fun YouTubePlaylist(
                         // will get updated accordingly
                         key = { i, s -> "${System.identityHashCode(s)} - $i" }
                     ) { index, song ->
+<<<<<<< HEAD
+=======
+                        val isLocal by remember { derivedStateOf { song.isLocal } }
+                        val isDownloaded = !isLocal && isDownloadedSong( song.id )
+                        val mediaItem = song.asMediaItem
+
+>>>>>>> upstream/main
                         SwipeablePlaylistItem(
-                            mediaItem = song.asMediaItem,
+                            mediaItem = mediaItem,
                             onPlayNext = {
-                                player.addNext( song.asMediaItem )
+                                player.addNext( mediaItem )
                             },
                             onDownload = {
+<<<<<<< HEAD
                                 downloadHelper.downloadSong( song )
+=======
+                                val cache: Cache by inject(Cache::class.java, CacheType.CACHE)
+                                cache.removeResource( song.id )
+                                Database.asyncTransaction {
+                                    formatTable.updateContentLengthOf( song.id )
+                                }
+
+                                if (!isLocal)
+                                    manageDownload(
+                                        context = context,
+                                        mediaItem = mediaItem,
+                                        downloadState = isDownloaded
+                                    )
+>>>>>>> upstream/main
                             },
                             onEnqueue = {
-                                player.enqueue(song.asMediaItem)
+                                player.enqueue( mediaItem )
                             }
                         ) {
                             SongItem.Render(
@@ -363,6 +392,10 @@ fun YouTubePlaylist(
                                             songs.fastMap( Song::asMediaItem ),
                                             index
                                         )
+                                },
+                                onLongClick = {
+                                    val page = MenuPage.Song(mediaItem)
+                                    menu.show( page, true )
                                 }
                             )
                         }

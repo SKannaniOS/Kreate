@@ -31,10 +31,16 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
+import app.kreate.android.LocalBottomMenu
 import app.kreate.android.Preferences
+<<<<<<< HEAD
 import app.kreate.android.service.download.CacheState
 import app.kreate.android.service.download.DownloadHelper
+=======
+import app.kreate.android.constant.MenuPage
+>>>>>>> upstream/main
 import app.kreate.android.service.player.StatefulPlayer
+import app.kreate.android.themed.common.component.BottomMenu
 import app.kreate.android.themed.common.component.tab.DeleteAllDownloadedDialog
 import app.kreate.android.themed.common.component.tab.DownloadAllDialog
 import app.kreate.android.themed.rimusic.component.ItemSelector
@@ -91,6 +97,7 @@ fun HomeSongs(
     buttons: MutableList<Button>,
     itemsOnDisplay: MutableList<Song>,
     getSongs: () -> List<Song>,
+    menu: BottomMenu = LocalBottomMenu.current
 ) {
     // Essentials
     val player: StatefulPlayer = koinInject()
@@ -320,6 +327,10 @@ fun HomeSongs(
                                 itemsOnDisplay.fastMap( Song::asMediaItem ),
                                 index
                             )
+                    },
+                    onLongClick = {
+                        val page = if( song.isLocal ) MenuPage.LocalSong(mediaItem) else MenuPage.Song(mediaItem)
+                        menu.show( page, true )
                     }
                 )
             }
