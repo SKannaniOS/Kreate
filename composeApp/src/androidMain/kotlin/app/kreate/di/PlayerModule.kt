@@ -3,36 +3,39 @@
 package app.kreate.di
 
 import android.content.Context
-import android.net.ConnectivityManager
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.util.fastFilter
-import androidx.core.content.getSystemService
-import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.datasource.DataSource
+import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
+<<<<<<< HEAD
+=======
+import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.NoOpCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+>>>>>>> upstream/main
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.extractor.DefaultExtractorsFactory
 import app.kreate.android.Preferences
+<<<<<<< HEAD
 import app.kreate.android.R
 import app.kreate.android.service.download.DownloadHelper
 import app.kreate.android.service.download.DownloadHelperImpl
+=======
+import app.kreate.android.service.DownloadHelper
+>>>>>>> upstream/main
 import app.kreate.android.service.player.ErrorHandlingPolicy
 import app.kreate.android.service.player.StatefulPlayer
 import app.kreate.android.service.player.StatefulPlayerImpl
 import app.kreate.android.service.player.VolumeObserver
-import app.kreate.android.utils.CharUtils
-import app.kreate.android.utils.ConnectivityUtils
-import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.isLocalFile
+<<<<<<< HEAD
 import app.kreate.database.models.Format
 import co.touchlab.kermit.Logger
 import com.grack.nanojson.JsonWriter
@@ -63,14 +66,18 @@ import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.json.Json
 import me.knighthat.innertube.Endpoints
 import me.knighthat.innertube.Innertube
+=======
+import it.fast4x.rimusic.enums.ExoPlayerCacheLocation
+import me.knighthat.impl.DownloadHelperImpl
+>>>>>>> upstream/main
 import me.knighthat.innertube.UserAgents
-import me.knighthat.innertube.response.PlayerResponse
-import me.knighthat.utils.Toaster
 import okhttp3.OkHttpClient
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.qualifier.Qualifier
 import org.koin.core.qualifier.QualifierValue
+import org.koin.dsl.bind
 import org.koin.dsl.module
+<<<<<<< HEAD
 import org.koin.java.KoinJavaComponent.inject
 import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
@@ -87,75 +94,42 @@ private const val MAX_CHUNK_LENGTH = 5L * 1024 * 1024       // 5MB
 private const val ONE_HOUR = 3_600_000L
 private const val METHOD_ANDROID = 1
 private const val METHOD_IOS = 2
+=======
+import kotlin.io.path.createTempDirectory
 
-/**
- * Acts as a lock to keep [upsertSongFormat] from starting before
- * [upsertSongInfo] finishes.
- */
-private var databaseWorker: Job = Job()
 
-/**
- * Store id of song just added to the database.
- * This is created to reduce load to Room
- */
-private val justInserted = AtomicReference("")
-private val cachedStreamUrl = ConcurrentMap<String, StreamCache>()
-private val jsonParser =
-    Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-        useArrayPolymorphism = true
-        explicitNulls = false
+const val CHUNK_LENGTH = 512 * 1024L     // 512KB
+>>>>>>> upstream/main
+
+private const val CACHE_DIRNAME = "exo_cache"
+private const val DOWNLOAD_CACHE_DIRNAME = "exo_downloads"
+
+private fun initCache( context: Context, size: Long, cacheDirName: String ): Cache {
+    val cacheEvictor = when( size ) {
+        0L, Long.MAX_VALUE -> NoOpCacheEvictor()
+        else -> LeastRecentlyUsedCacheEvictor( size )
     }
-private val client: HttpClient by inject(HttpClient::class.java)
-private val context: Context by inject(Context::class.java)
-private val logger = Logger.withTag( "dataspec" )
+    val cacheDir = when( size ) {
+        // Temporary directory deletes itself after close
+        // It means songs remain on device as long as it's open
+        0L -> createTempDirectory( cacheDirName ).toFile()
 
-//<editor-fold desc="Database handlers">
-/**
- * Reach out to [Endpoints.NEXT] endpoint for song's information.
- *
- * Info includes:
- * - Titles
- * - Artist(s)
- * - Album
- * - Thumbnails
- * - Duration
- *
- * ### If song IS already inside database
- *
- * It'll replace unmodified columns with fetched data
- *
- * ### If song IS NOT already inside database
- *
- * New record will be created and insert into database
- *
- */
-private fun upsertSongInfo( context: Context, videoId: String ) {       // Use this to prevent suspension of thread while waiting for response from YT
-    // Skip adding if it's just added in previous call
-    if( videoId == justInserted.get() || !isNetworkAvailable( context ) )
-        return
-
-    logger.v { "fetching and upserting $videoId's information to the database" }
-
-    databaseWorker = CoroutineScope(Dispatchers.IO ).launch {
-        Innertube.songBasicInfo( videoId, CURRENT_LOCALE )
-            .onSuccess{
-                logger.v { "$videoId's information successfully found and parsed" }
-
-                Database.upsert( it )
-
-                logger.d { "$videoId's information successfully upserted to the database" }
-            }
-            .onFailure {
-                logger.e( "failed to upsert $videoId's information to database", it )
-                Toaster.e( R.string.error_failed_to_fetch_songs_info )
-            }
+        // Looks a bit ugly but what it does is
+        // check location set by user and return
+        // appropriate path with [cacheDirName] appended.
+        else -> when( Preferences.EXO_CACHE_LOCATION.value ) {
+            ExoPlayerCacheLocation.System   -> context.cacheDir
+            ExoPlayerCacheLocation.Private  -> context.filesDir
+            ExoPlayerCacheLocation.SPLIT    -> if( cacheDirName == DOWNLOAD_CACHE_DIRNAME ) context.filesDir else context.cacheDir
+        }.resolve( cacheDirName )
     }
+    // Ensure this location exists
+    cacheDir.mkdirs()
 
-    // Must not modify [JustInserted] to [upsertSongFormat] let execute later
+    return SimpleCache( cacheDir, cacheEvictor, StandaloneDatabaseProvider(context) )
 }
 
+<<<<<<< HEAD
 /**
  * Upsert provided format to the database
  */
@@ -489,10 +463,33 @@ val playerModule = module {
             .setUpstreamDataSourceFactory( cacheDataSource )
             // Only allow download to read from download cache
             .setCacheWriteDataSinkFactory( null )
+=======
+val playerModule = module {
+    //<editor-fold desc="Cache">
+    single( CacheType.CACHE ) {
+        initCache( get(), Preferences.EXO_CACHE_SIZE.value, CACHE_DIRNAME )
+    }
+    single( CacheType.DOWNLOAD ) {
+        initCache( get(), Preferences.EXO_DOWNLOAD_SIZE.value, DOWNLOAD_CACHE_DIRNAME )
+    }
+    factory( CacheType.CACHE ) {
+        CacheDataSource.Factory()
+                       .setCache( get(CacheType.CACHE) )
+                       .setFlags( FLAG_IGNORE_CACHE_ON_ERROR )
+    }
+    factory( CacheType.DOWNLOAD ) {
+        CacheDataSource.Factory()
+                       .setCache( get(CacheType.DOWNLOAD) )
+                       .setFlags( FLAG_IGNORE_CACHE_ON_ERROR )
+    }
+    //</editor-fold>
+>>>>>>> upstream/main
 
+    single {
         ResolvingDataSource.Factory(
             DefaultDataSource.Factory(
                 get(),
+<<<<<<< HEAD
                 downloadDataSource
             ),
             playerResolver( cache, downloadCache )
@@ -520,24 +517,71 @@ val playerModule = module {
     single<StatefulPlayer> {
         val context: Context = get()
         val resolvingFactory: ResolvingDataSource.Factory = get(DatasourceType.PLAYER)
-        val handleAudioFocus by Preferences.AUDIO_SMART_PAUSE_DURING_CALLS
+=======
+                OkHttpDataSource.Factory(get<OkHttpClient>())
+                    .setUserAgent( UserAgents.CHROME_WINDOWS )
+            )
+        ) { dataSpec ->
+            if ( dataSpec.uri.isLocalFile() )
+                // If this is a local file, no conversion needed
+                // because its uri already points to a physical file
+                dataSpec
+            else
+                resolveInnertubeMedia( dataSpec )
+        }
+    }
 
-        val renderersFactory = DefaultRenderersFactory(context)
-        val datasourceFactory = DefaultMediaSourceFactory(
-            resolvingFactory,
-            DefaultExtractorsFactory()
+    // FIXME: This is technically usable but not recommended,
+    //  new instance should be created on each injection.
+    //  subscribers should use [PlaybackService]'s player instead of injecting
+    //  an instance from Koin.
+    // TODO: Convert this into factory
+    single<StatefulPlayer> {
+        //<editor-fold desc="DataSource">
+        val dataSource = DefaultMediaSourceFactory(
+            // At the bottom of the stack, it's download cache
+            get<CacheDataSource.Factory>(CacheType.DOWNLOAD)
+                // Read-only cache, player doesn't get to write anything in here
+                .setCacheWriteDataSinkFactory( null )
+                .setUpstreamDataSourceFactory(
+                    // Next up is regular cache
+                    get<CacheDataSource.Factory>(CacheType.CACHE)
+                        // The final upstream handles 2 cases, local files and remote files
+                        .setUpstreamDataSourceFactory( get<ResolvingDataSource.Factory>() )
+                        // Player is allowed to write chunks into this storage.
+                        .setCacheWriteDataSinkFactory(
+                            CacheDataSink.Factory()
+                                .setCache( get(CacheType.CACHE) )
+                                // Chunks are small so recovery can work better
+                                .setFragmentSize( CHUNK_LENGTH )
+                                // Bigger than default buffer size to avoid
+                                // constant write to disk, but small enough
+                                // to avoid data loss if app crashes
+                                .setBufferSize( 64 * 1024 )     // 64KiB
+                        )
+                )
         )
-        datasourceFactory.setLoadErrorHandlingPolicy( ErrorHandlingPolicy() )
+        dataSource.setLoadErrorHandlingPolicy( ErrorHandlingPolicy() )
+        //</editor-fold>
+        //<editor-fold desc="Audio handlers">
+>>>>>>> upstream/main
+        val handleAudioFocus by Preferences.AUDIO_SMART_PAUSE_DURING_CALLS
         val audioAttributes = AudioAttributes.Builder()
             .setUsage( C.USAGE_MEDIA )
             .setContentType( C.AUDIO_CONTENT_TYPE_MUSIC )
             .build()
+        //</editor-fold>
 
         StatefulPlayerImpl(
+<<<<<<< HEAD
             context,
             ExoPlayer.Builder(context)
                 .setMediaSourceFactory( datasourceFactory )
                 .setRenderersFactory( renderersFactory )
+=======
+            ExoPlayer.Builder( get() )
+                .setMediaSourceFactory( dataSource )
+>>>>>>> upstream/main
                 .setHandleAudioBecomingNoisy( true )
                 .setWakeMode( C.WAKE_MODE_NETWORK )
                 .setAudioAttributes( audioAttributes, handleAudioFocus )
@@ -545,6 +589,7 @@ val playerModule = module {
                 .build()
         )
     }
+<<<<<<< HEAD
     single<DownloadHelper> {
         val context: Context = get()
         val cache: Cache = get(CacheType.CACHE)
@@ -552,17 +597,15 @@ val playerModule = module {
 
         DownloadHelperImpl(context, cache, downloadCache)
     }
+=======
+
+    singleOf( ::VolumeObserver )
+    singleOf( ::DownloadHelperImpl ) bind DownloadHelper::class
+>>>>>>> upstream/main
 }
 
-enum class DatasourceType : Qualifier {
-    PLAYER, DOWNLOADER;
+enum class CacheType : Qualifier {
+    CACHE, DOWNLOAD;
 
     override val value: QualifierValue = toString().lowercase()
 }
-
-private data class StreamCache(
-    val cpn: String,
-    val contentLength: Long,
-    val playableUrl: String,
-    val expiredTimeMillis: Long
-)

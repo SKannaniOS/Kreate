@@ -297,7 +297,6 @@ fun Queue(
                                 isPlaying = song.shallowCompare( currentMediaItem ),
                                 values = songItemValues,
                                 itemSelector = itemSelector,
-                                navController = navController,
                                 trailingContent = {
                                     if( !positionLock.isLocked() )
                                     // Create a fake box to store drag anchor and checkbox
