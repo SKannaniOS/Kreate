@@ -33,6 +33,7 @@ import app.kreate.android.R
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import app.kreate.android.coil3.ImageFactory
 <<<<<<< HEAD
 import app.kreate.android.service.DownloadHelper
@@ -67,6 +68,8 @@ import app.kreate.android.service.player.CustomExoPlayer
 >>>>>>> upstream/main
 =======
 import app.kreate.android.service.playback.AudioHandler
+>>>>>>> upstream/main
+=======
 >>>>>>> upstream/main
 import app.kreate.android.service.player.ExoPlayerListener
 import app.kreate.android.service.player.LiveWallpaperEngine
@@ -176,7 +179,6 @@ class PlayerServiceModern:
     private val cache: Cache by inject(CacheType.CACHE)
     private val discord: Discord by inject()
     private val player: StatefulPlayer by inject()
-    private val downloadHelper: DownloadHelper by inject()
     private val volumeObserver: VolumeObserver by inject()
 <<<<<<< HEAD
 >>>>>>> upstream/main
@@ -390,7 +392,22 @@ class PlayerServiceModern:
             .apply { setSmallIcon( R.drawable.app_icon_monochrome ) }
             .also( ::setMediaNotificationProvider )
 
+<<<<<<< HEAD
         MyDownloadHelper.instance = this.downloadHelper
+=======
+        runCatching {
+            bitmapProvider = BitmapProvider(
+                bitmapSize = (512 * resources.displayMetrics.density).roundToInt(),
+                colorProvider = { isSystemInDarkMode ->
+                    if (isSystemInDarkMode) Color.BLACK else Color.WHITE
+                }
+            )
+        }.onFailure {
+            logger.e( it ) { "Failed init bitmap provider" }
+        }
+
+        val preferences = preferences
+>>>>>>> upstream/main
 
 <<<<<<< HEAD
         sleepTimer = SleepTimer(coroutineScope, player).also( player::addListener )
