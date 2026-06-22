@@ -1,9 +1,9 @@
 
 [versions]
 # App properties
-versionCode = "138"
-versionName = "2.2.0"
-compileSdk = "36"
+versionCode = "139"
+versionName = "2.2.1"
+compileSdk = "37"
 minSdk = "23"
 
 <<<<<<< HEAD
@@ -33,8 +33,12 @@ kotlin-ksp = "2.3.6"
 =======
 kotlin = "2.4.0"
 kotlin-ksp = "2.3.9"
+<<<<<<< HEAD
 >>>>>>> upstream/main
 coil3 = "3.4.0"
+=======
+coil3 = "3.5.0"
+>>>>>>> upstream/main
 room = "2.8.4"
 sqlite = "2.6.2"
 <<<<<<< HEAD
@@ -77,6 +81,7 @@ newpipe-extractor = "v0.26.0"
 compose-kmp = "1.10.2"
 =======
 compose-kmp = "1.11.1"
+<<<<<<< HEAD
 >>>>>>> upstream/main
 license-report = "3.1.2"
 =======
@@ -87,6 +92,9 @@ license-report = "3.1.1"
 =======
 license-report = "3.1.2"
 >>>>>>> upstream/main
+=======
+license-report = "3.1.4"
+>>>>>>> upstream/main
 material3-kmp = "1.9.0"
 junit4 = "4.13.2"
 robolectric = "4.16.1"
@@ -95,6 +103,7 @@ lifecycle = "2.10.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 kotlinx-serialization = "1.11.0"
+<<<<<<< HEAD
 koin = "4.1.1"
 =======
 kotlinx-serialization = "1.10.0"
@@ -102,6 +111,9 @@ kotlinx-serialization = "1.10.0"
 kotlinx-serialization = "1.11.0"
 >>>>>>> upstream/main
 koin = "4.2.1"
+>>>>>>> upstream/main
+=======
+koin = "4.2.2"
 >>>>>>> upstream/main
 kermit = "2.1.0"
 javax = "1"
