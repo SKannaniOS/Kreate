@@ -100,11 +100,15 @@ junit4 = "4.13.2"
 robolectric = "4.16.1"
 androidTest = "1.7.0"
 <<<<<<< HEAD
+<<<<<<< HEAD
 lifecycle = "2.10.0"
 <<<<<<< HEAD
 <<<<<<< HEAD
 =======
 lifecycle = "2.11.0"
+>>>>>>> upstream/main
+=======
+lifecycle = "2.10.0"
 >>>>>>> upstream/main
 kotlinx-serialization = "1.11.0"
 <<<<<<< HEAD
